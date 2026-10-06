@@ -117,19 +117,8 @@ func (b *TelegramBot) handleMessage(m *tgbotapi.Message) {
 }
 
 func (b *TelegramBot) helpText() string {
-	return fmt.Sprintf(`<b>%s</b> — Telegram-бот поддержки
-
-Команды:
-/link email пароль — привязать аккаунт
-/unlink — отвязать Telegram
-/new — создать заявку
-/new Тема | Описание — создать сразу
-/list — мои заявки
-/ticket P-00001 — карточка заявки
-/comment P-00001 — ответить в заявку
-/cancel — отменить текущий шаг
-
-Сначала выполните /link, затем создавайте заявки.`, b.name)
+	plain := helpText(b.name, "Telegram")
+	return strings.Replace(plain, b.name+" — Telegram-бот поддержки", "<b>"+b.name+"</b> — Telegram-бот поддержки", 1)
 }
 
 func (b *TelegramBot) cmdLink(chatID int64, args string) {
@@ -202,23 +191,6 @@ func (b *TelegramBot) createFromText(chatID int64, text string) {
 	b.reply(chatID, fmt.Sprintf("Заявка <b>#%s</b> создана.\n%s\n\n/ticket %s — подробности", ticket.Number, title, ticket.Number))
 }
 
-func parseTicketText(text string) (string, string) {
-	text = strings.TrimSpace(text)
-	if strings.Contains(text, "|") {
-		parts := strings.SplitN(text, "|", 2)
-		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-	}
-	lines := strings.SplitN(text, "\n", 2)
-	title := strings.TrimSpace(lines[0])
-	if len(lines) == 1 {
-		return title, title
-	}
-	desc := strings.TrimSpace(lines[1])
-	if desc == "" {
-		desc = title
-	}
-	return title, desc
-}
 
 func (b *TelegramBot) cmdList(chatID int64) {
 	user := b.requireUser(chatID)

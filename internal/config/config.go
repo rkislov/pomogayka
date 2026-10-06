@@ -9,23 +9,34 @@ import (
 )
 
 type Config struct {
-	AppName           string
-	Addr              string
-	DatabaseURL       string
-	SessionSecret     string
-	AdminEmail        string
-	AdminPassword     string
-	AdminFullName     string
-	SecureCookies     bool
-	SessionHours      int
-	TelegramBotToken  string
+	AppName            string
+	Addr               string
+	DatabaseURL        string
+	SessionSecret      string
+	AdminEmail         string
+	AdminPassword      string
+	AdminFullName      string
+	SecureCookies      bool
+	SessionHours       int
+	TelegramBotToken   string
 	TelegramBotEnabled bool
+	JabberJID          string
+	JabberPassword     string
+	JabberHost         string
+	JabberNoTLS        bool
+	JabberStartTLS     bool
+	JabberInsecureTLS  bool
+	JabberEnabled      bool
 }
 
 func Load() Config {
 	_ = godotenv.Load()
 
 	token := env("TELEGRAM_BOT_TOKEN", "")
+	jabberJID := env("JABBER_JID", "")
+	jabberPassword := env("JABBER_PASSWORD", "")
+	jabberConfigured := jabberJID != "" && jabberPassword != ""
+
 	return Config{
 		AppName:            env("APP_NAME", "Помогайка"),
 		Addr:               env("ADDR", ":8080"),
@@ -38,6 +49,13 @@ func Load() Config {
 		SessionHours:       envInt("SESSION_HOURS", 168),
 		TelegramBotToken:   token,
 		TelegramBotEnabled: envBool("TELEGRAM_BOT_ENABLED", token != ""),
+		JabberJID:          jabberJID,
+		JabberPassword:     jabberPassword,
+		JabberHost:         env("JABBER_HOST", ""),
+		JabberNoTLS:        envBool("JABBER_NO_TLS", false),
+		JabberStartTLS:     envBool("JABBER_START_TLS", true),
+		JabberInsecureTLS:  envBool("JABBER_INSECURE_TLS", false),
+		JabberEnabled:      envBool("JABBER_ENABLED", jabberConfigured),
 	}
 }
 

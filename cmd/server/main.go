@@ -45,6 +45,7 @@ func main() {
 	}
 
 	app := &handlers.App{Store: store, Sessions: sessions, Render: renderer}
+	notifiers := &bot.MultiNotifier{}
 
 	if cfg.TelegramBotEnabled {
 		if cfg.TelegramBotToken == "" {
@@ -54,11 +55,30 @@ func main() {
 		if err != nil {
 			log.Fatalf("telegram bot: %v", err)
 		}
-		app.Notifier = tg
+		notifiers.Add(tg)
 		go tg.Start()
 		log.Printf("Telegram bot enabled")
 	} else {
 		log.Printf("Telegram bot disabled (set TELEGRAM_BOT_TOKEN to enable)")
+	}
+
+	if cfg.JabberEnabled {
+		if cfg.JabberJID == "" || cfg.JabberPassword == "" {
+			log.Fatal("JABBER_ENABLED=true, but JABBER_JID/JABBER_PASSWORD are empty")
+		}
+		jb, err := bot.NewJabber(cfg, store, cfg.AppName)
+		if err != nil {
+			log.Fatalf("jabber bot: %v", err)
+		}
+		notifiers.Add(jb)
+		go jb.Start()
+		log.Printf("Jabber bot enabled as %s", cfg.JabberJID)
+	} else {
+		log.Printf("Jabber bot disabled (set JABBER_JID and JABBER_PASSWORD to enable)")
+	}
+
+	if len(notifiers.Notifiers) > 0 {
+		app.Notifier = notifiers
 	}
 
 	r := chi.NewRouter()

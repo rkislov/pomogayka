@@ -15,6 +15,7 @@
 - Переменные шаблонов: `ticket.number`, `ticket.title`, `ticket.description` / `ticket.appeal_text`, `ticket.status`, `ticket.queue`, `author.full_name`, `assignee.full_name`, `comment.text`
 - SQLite из коробки, сессии в cookie
 - Telegram-бот: привязка аккаунта, создание заявок, список, ответы и уведомления
+- Jabber/XMPP-бот: те же команды и уведомления заявителю
 
 ## Быстрый старт
 
@@ -58,6 +59,27 @@ TELEGRAM_BOT_TOKEN=123456:ABC...
 - `/unlink` — отвязать Telegram
 
 Когда специалист отвечает в веб-интерфейсе, заявитель с привязанным Telegram получает уведомление.
+
+
+## Jabber / XMPP-бот
+
+1. Создайте отдельный XMPP-аккаунт для бота (например `pomogayka-bot@xmpp.example.com`).
+2. Добавьте в `.env`:
+
+```bash
+JABBER_JID=pomogayka-bot@xmpp.example.com
+JABBER_PASSWORD=secret
+# при необходимости:
+# JABBER_HOST=xmpp.example.com:5222
+# JABBER_START_TLS=true
+# JABBER_INSECURE_TLS=false
+```
+
+3. Перезапустите сервер. Бот подключается как XMPP-клиент в том же процессе.
+
+Команды те же, что у Telegram: `/link`, `/new`, `/list`, `/ticket`, `/comment`, `/unlink`.
+
+Пользователь пишет боту в любом Jabber-клиенте (Pidgin, Gajim, Conversations и т.п.), привязывает аккаунт через `/link email пароль` и работает с заявками. Публичные ответы из веба уходят и в Telegram, и в Jabber (если привязаны).
 
 ## Стек
 

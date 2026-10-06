@@ -25,17 +25,17 @@ func parseTime(s string) time.Time {
 }
 
 func (s *Store) GetUserByEmail(email string) (*models.User, error) {
-	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users WHERE email = ?`, strings.ToLower(email))
+	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, COALESCE(jabber_jid, ''), created_at FROM users WHERE email = ?`, strings.ToLower(email))
 	return scanUser(row)
 }
 
 func (s *Store) GetUserByID(id string) (*models.User, error) {
-	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users WHERE id = ?`, id)
+	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, COALESCE(jabber_jid, ''), created_at FROM users WHERE id = ?`, id)
 	return scanUser(row)
 }
 
 func (s *Store) GetUserByTelegramID(telegramID int64) (*models.User, error) {
-	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users WHERE telegram_id = ?`, telegramID)
+	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, COALESCE(jabber_jid, ''), created_at FROM users WHERE telegram_id = ?`, telegramID)
 	return scanUser(row)
 }
 
@@ -44,11 +44,13 @@ func scanUser(row *sql.Row) (*models.User, error) {
 	var active int
 	var created string
 	var telegramID sql.NullInt64
-	if err := row.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &telegramID, &created); err != nil {
+	var jabberJID string
+	if err := row.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &telegramID, &jabberJID, &created); err != nil {
 		return nil, err
 	}
 	u.IsActive = active == 1
 	u.CreatedAt = parseTime(created)
+	u.JabberJID = jabberJID
 	if telegramID.Valid {
 		v := telegramID.Int64
 		u.TelegramID = &v
@@ -67,6 +69,25 @@ func (s *Store) LinkTelegram(userID string, telegramID int64) error {
 
 func (s *Store) UnlinkTelegram(userID string) error {
 	_, err := s.DB.Exec(`UPDATE users SET telegram_id = NULL WHERE id = ?`, userID)
+	return err
+}
+
+func (s *Store) GetUserByJabberJID(jid string) (*models.User, error) {
+	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, COALESCE(jabber_jid, ''), created_at FROM users WHERE lower(jabber_jid) = lower(?)`, jid)
+	return scanUser(row)
+}
+
+func (s *Store) LinkJabber(userID, jid string) error {
+	_, err := s.DB.Exec(`UPDATE users SET jabber_jid = NULL WHERE lower(jabber_jid) = lower(?)`, jid)
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec(`UPDATE users SET jabber_jid = ? WHERE id = ?`, jid, userID)
+	return err
+}
+
+func (s *Store) UnlinkJabber(userID string) error {
+	_, err := s.DB.Exec(`UPDATE users SET jabber_jid = NULL WHERE id = ?`, userID)
 	return err
 }
 
@@ -102,7 +123,7 @@ func (s *Store) CreateUser(email, fullName, passwordHash string, role models.Rol
 }
 
 func (s *Store) ListUsers() ([]models.User, error) {
-	rows, err := s.DB.Query(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users ORDER BY created_at DESC`)
+	rows, err := s.DB.Query(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, COALESCE(jabber_jid, ''), created_at FROM users ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -113,11 +134,13 @@ func (s *Store) ListUsers() ([]models.User, error) {
 		var active int
 		var created string
 		var telegramID sql.NullInt64
-		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &telegramID, &created); err != nil {
+		var jabberJID string
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &telegramID, &jabberJID, &created); err != nil {
 			return nil, err
 		}
 		u.IsActive = active == 1
 		u.CreatedAt = parseTime(created)
+		u.JabberJID = jabberJID
 		if telegramID.Valid {
 			v := telegramID.Int64
 			u.TelegramID = &v

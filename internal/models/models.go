@@ -84,6 +84,7 @@ type User struct {
 	Role         Role
 	IsActive     bool
 	TelegramID   *int64
+	JabberJID    string
 	CreatedAt    time.Time
 }
 

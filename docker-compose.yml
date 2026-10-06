@@ -12,6 +12,12 @@ services:
       ADMIN_PASSWORD: admin12345
       ADMIN_FULL_NAME: Администратор
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      JABBER_JID: ${JABBER_JID:-}
+      JABBER_PASSWORD: ${JABBER_PASSWORD:-}
+      JABBER_HOST: ${JABBER_HOST:-}
+      JABBER_START_TLS: ${JABBER_START_TLS:-true}
+      JABBER_NO_TLS: ${JABBER_NO_TLS:-false}
+      JABBER_INSECURE_TLS: ${JABBER_INSECURE_TLS:-false}
     volumes:
       - pomogayka_data:/app/data
 

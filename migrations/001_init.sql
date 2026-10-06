@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL CHECK (role IN ('client', 'agent', 'admin')),
     is_active INTEGER NOT NULL DEFAULT 1,
     telegram_id INTEGER,
+    jabber_jid TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -64,5 +65,6 @@ CREATE TABLE IF NOT EXISTS ticket_counters (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_jabber_jid ON users(jabber_jid) WHERE jabber_jid IS NOT NULL AND jabber_jid != '';
 
 INSERT OR IGNORE INTO ticket_counters (name, value) VALUES ('tickets', 0);

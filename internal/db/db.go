@@ -75,6 +75,14 @@ func ensureSchema(database *sql.DB) error {
 	if _, err := database.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL`); err != nil {
 		return err
 	}
+	if _, ok := cols["jabber_jid"]; !ok {
+		if _, err := database.Exec(`ALTER TABLE users ADD COLUMN jabber_jid TEXT`); err != nil {
+			return err
+		}
+	}
+	if _, err := database.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_jabber_jid ON users(jabber_jid) WHERE jabber_jid IS NOT NULL AND jabber_jid != ''`); err != nil {
+		return err
+	}
 	return nil
 }
 
