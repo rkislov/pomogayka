@@ -44,6 +44,44 @@ docker compose up --build
 
 
 
+
+## Кросс-сборка (Linux / Windows / Raspberry Pi)
+
+Сборка без CGO (SQLite через `modernc.org/sqlite`):
+
+```bash
+make release
+# или
+./scripts/build-release.sh
+```
+
+Артефакты в `dist/`:
+
+| Файл | Платформа |
+|------|-----------|
+| `pomogayka-linux-amd64` | Linux x86_64 |
+| `pomogayka-windows-amd64.exe` | Windows x86_64 |
+| `pomogayka-linux-arm64` | Raspberry Pi 64-bit (Pi 3+/4/5) |
+| `pomogayka-linux-armv7` | Raspberry Pi 32-bit (ARMv7) |
+
+Также собираются бинарники `pomogayka-migrate-*` и `SHA256SUMS.txt`.
+
+Отдельные цели:
+
+```bash
+make linux-amd64
+make windows-amd64
+make raspberry-pi64
+make raspberry-pi32
+```
+
+Пример на Raspberry Pi:
+
+```bash
+chmod +x pomogayka-linux-arm64
+./pomogayka-linux-arm64
+```
+
 ## PostgreSQL
 
 По умолчанию используется SQLite. Для PostgreSQL задайте:

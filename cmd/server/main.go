@@ -17,6 +17,8 @@ import (
 	appmw "github.com/rkislov/pomogayka/internal/middleware"
 )
 
+var version = "dev"
+
 func main() {
 	cfg := config.Load()
 
@@ -141,7 +143,7 @@ func main() {
 		})
 	})
 
-	log.Printf("%s listening on %s", cfg.AppName, cfg.Addr)
+	log.Printf("%s %s listening on %s", cfg.AppName, version, cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, r); err != nil {
 		log.Fatal(err)
 	}
