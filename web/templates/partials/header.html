@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="/static/css/app.css">
   <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
   <script src="/static/js/app.js" defer></script>
+  {{if .ShowSoftphone}}
+  <script type="module" src="/static/js/softphone.js"></script>
+  {{end}}
 </head>
 <body>
   <div class="app-shell">
@@ -17,6 +20,9 @@
       <nav class="nav">
         <a href="/dashboard" class="{{if eq .Path "/dashboard"}}active{{end}}">Дашборд</a>
         <a href="/tickets" class="{{if hasPrefix .Path "/tickets"}}active{{end}}">Заявки</a>
+        {{if or (eq .User.Role "agent") (eq .User.Role "manager") (eq .User.Role "admin")}}
+        <a href="/clients" class="{{if hasPrefix .Path "/clients"}}active{{end}}">Клиенты</a>
+        {{end}}
         {{if or (eq .User.Role "manager") (eq .User.Role "admin")}}
         <a href="/team" class="{{if hasPrefix .Path "/team"}}active{{end}}">Команда</a>
         {{end}}
@@ -32,6 +38,26 @@
         <form method="post" action="/logout"><button class="btn btn-ghost" type="submit">Выйти</button></form>
       </div>
     </header>
+    {{if .ShowSoftphone}}
+    <div id="softphone" class="softphone" hidden>
+      <div class="softphone-main">
+        <span class="softphone-dot" id="sip-dot" title="Статус линии"></span>
+        <span class="softphone-status" id="sip-status">SIP выкл.</span>
+        <input type="text" id="sip-extension" placeholder="Добавочный" autocomplete="off">
+        <input type="password" id="sip-password" placeholder="Пароль SIP" autocomplete="off">
+        <button type="button" class="btn btn-secondary btn-sm" id="sip-connect">На линию</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="sip-disconnect" hidden>Снять</button>
+        <label class="check softphone-auto"><input type="checkbox" id="sip-auto"> авто</label>
+      </div>
+      <div class="softphone-call" id="sip-call" hidden>
+        <strong id="sip-caller">Входящий</strong>
+        <audio id="sip-remote-audio" autoplay playsinline></audio>
+        <button type="button" class="btn btn-primary btn-sm" id="sip-answer">Принять</button>
+        <button type="button" class="btn btn-danger btn-sm" id="sip-reject">Отклонить</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="sip-hangup" hidden>Завершить</button>
+      </div>
+    </div>
+    {{end}}
     {{end}}
     <main class="container">
 {{end}}

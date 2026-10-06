@@ -91,7 +91,7 @@ func (s *Store) DeleteTenantDomain(tenantID, domainID string) error {
 func (s *Store) GetLDAPSettings(tenantID string) (*models.LDAPSettings, error) {
 	row := s.DB.QueryRow(`
 SELECT tenant_id, enabled, provider, server_url, bind_dn, bind_password, user_base_dn, user_filter,
-       email_attr, name_attr, username_attr, group_attr, agent_group_dn, manager_group_dn, admin_group_dn,
+       email_attr, name_attr, username_attr, COALESCE(phone_attr, 'telephoneNumber'), group_attr, agent_group_dn, manager_group_dn, admin_group_dn,
        use_tls, start_tls, insecure_tls, updated_at
 FROM tenant_ldap_settings WHERE tenant_id = ?`, tenantID)
 	var sset models.LDAPSettings
@@ -99,7 +99,7 @@ FROM tenant_ldap_settings WHERE tenant_id = ?`, tenantID)
 	var updated string
 	err := row.Scan(
 		&sset.TenantID, &enabled, &sset.Provider, &sset.ServerURL, &sset.BindDN, &sset.BindPassword,
-		&sset.UserBaseDN, &sset.UserFilter, &sset.EmailAttr, &sset.NameAttr, &sset.UsernameAttr, &sset.GroupAttr,
+		&sset.UserBaseDN, &sset.UserFilter, &sset.EmailAttr, &sset.NameAttr, &sset.UsernameAttr, &sset.PhoneAttr, &sset.GroupAttr,
 		&sset.AgentGroupDN, &sset.ManagerGroupDN, &sset.AdminGroupDN, &useTLS, &startTLS, &insecure, &updated,
 	)
 	if err == sql.ErrNoRows {
@@ -110,6 +110,7 @@ FROM tenant_ldap_settings WHERE tenant_id = ?`, tenantID)
 			EmailAttr:    "mail",
 			NameAttr:     "displayName",
 			UsernameAttr: "sAMAccountName",
+			PhoneAttr:    "telephoneNumber",
 			GroupAttr:    "memberOf",
 			UseTLS:       true,
 		}, nil
@@ -156,25 +157,28 @@ func (s *Store) SaveLDAPSettings(cfg models.LDAPSettings) error {
 			cfg.UsernameAttr = "sAMAccountName"
 		}
 	}
+	if cfg.PhoneAttr == "" {
+		cfg.PhoneAttr = "telephoneNumber"
+	}
 	if cfg.GroupAttr == "" {
 		cfg.GroupAttr = "memberOf"
 	}
 	_, err := s.DB.Exec(`
 INSERT INTO tenant_ldap_settings (
   tenant_id, enabled, provider, server_url, bind_dn, bind_password, user_base_dn, user_filter,
-  email_attr, name_attr, username_attr, group_attr, agent_group_dn, manager_group_dn, admin_group_dn,
+  email_attr, name_attr, username_attr, phone_attr, group_attr, agent_group_dn, manager_group_dn, admin_group_dn,
   use_tls, start_tls, insecure_tls, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(tenant_id) DO UPDATE SET
   enabled=excluded.enabled, provider=excluded.provider, server_url=excluded.server_url,
   bind_dn=excluded.bind_dn, bind_password=excluded.bind_password, user_base_dn=excluded.user_base_dn,
   user_filter=excluded.user_filter, email_attr=excluded.email_attr, name_attr=excluded.name_attr,
-  username_attr=excluded.username_attr, group_attr=excluded.group_attr,
+  username_attr=excluded.username_attr, phone_attr=excluded.phone_attr, group_attr=excluded.group_attr,
   agent_group_dn=excluded.agent_group_dn, manager_group_dn=excluded.manager_group_dn,
   admin_group_dn=excluded.admin_group_dn, use_tls=excluded.use_tls, start_tls=excluded.start_tls,
   insecure_tls=excluded.insecure_tls, updated_at=excluded.updated_at
 `, cfg.TenantID, b(cfg.Enabled), cfg.Provider, cfg.ServerURL, cfg.BindDN, cfg.BindPassword, cfg.UserBaseDN, cfg.UserFilter,
-		cfg.EmailAttr, cfg.NameAttr, cfg.UsernameAttr, cfg.GroupAttr, cfg.AgentGroupDN, cfg.ManagerGroupDN, cfg.AdminGroupDN,
+		cfg.EmailAttr, cfg.NameAttr, cfg.UsernameAttr, cfg.PhoneAttr, cfg.GroupAttr, cfg.AgentGroupDN, cfg.ManagerGroupDN, cfg.AdminGroupDN,
 		b(cfg.UseTLS), b(cfg.StartTLS), b(cfg.InsecureTLS), now)
 	return err
 }

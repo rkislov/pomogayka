@@ -120,3 +120,30 @@ th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-
   .topbar { flex-direction: column; align-items: stretch; }
   .userbox { justify-content: space-between; }
 }
+
+
+/* Softphone / SIP.js */
+.softphone {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+  padding: 0.55rem 1.25rem; border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, #ecfeff, #f0fdfa 50%, #fff);
+}
+.softphone-main, .softphone-call { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.softphone input[type="text"], .softphone input[type="password"] {
+  width: auto; min-width: 110px; max-width: 160px; padding: 0.4rem 0.65rem; border-radius: 999px; font-size: 0.85rem;
+}
+.softphone-status { font-weight: 700; font-size: 0.85rem; color: var(--ink); min-width: 7rem; }
+.softphone-dot {
+  width: 0.65rem; height: 0.65rem; border-radius: 50%; background: #94a3b8; display: inline-block;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.25);
+}
+.softphone-dot[data-state="ok"] { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2); }
+.softphone-dot[data-state="ring"] { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25); animation: sip-pulse 1s infinite; }
+.softphone-dot[data-state="talk"] { background: #0d9488; box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.25); }
+.softphone-dot[data-state="wait"] { background: #3b82f6; }
+.softphone-dot[data-state="err"] { background: #dc2626; }
+.softphone-auto { font-size: 0.8rem; color: var(--muted); }
+@keyframes sip-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}

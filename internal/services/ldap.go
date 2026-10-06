@@ -15,6 +15,7 @@ type LDAPUser struct {
 	FullName   string
 	ExternalID string
 	Groups     []string
+	Phones     []string
 	Role       models.Role
 }
 
@@ -38,7 +39,8 @@ func AuthenticateLDAP(cfg *models.LDAPSettings, login, password string) (*LDAPUs
 
 	filter := buildUserFilter(cfg, login)
 	attrs := uniqueNonEmpty([]string{
-		cfg.EmailAttr, cfg.NameAttr, cfg.UsernameAttr, cfg.GroupAttr, "dn", "entryUUID", "objectGUID", "uid",
+		cfg.EmailAttr, cfg.NameAttr, cfg.UsernameAttr, cfg.PhoneAttr, cfg.GroupAttr,
+		"telephoneNumber", "mobile", "dn", "entryUUID", "objectGUID", "uid",
 	})
 	req := ldap.NewSearchRequest(
 		cfg.UserBaseDN,
@@ -82,13 +84,39 @@ func AuthenticateLDAP(cfg *models.LDAPSettings, login, password string) (*LDAPUs
 		ext = entry.DN
 	}
 	role := roleFromGroups(groups, cfg)
+	phones := collectPhones(entry, cfg.PhoneAttr)
 	return &LDAPUser{
 		Email:      strings.ToLower(strings.TrimSpace(email)),
 		FullName:   strings.TrimSpace(name),
 		ExternalID: ext,
 		Groups:     groups,
+		Phones:     phones,
 		Role:       role,
 	}, nil
+}
+
+func collectPhones(e *ldap.Entry, primaryAttr string) []string {
+	var out []string
+	seen := map[string]struct{}{}
+	add := func(vals []string) {
+		for _, v := range vals {
+			v = strings.TrimSpace(v)
+			if v == "" {
+				continue
+			}
+			if _, ok := seen[v]; ok {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
+	}
+	if primaryAttr != "" {
+		add(e.GetAttributeValues(primaryAttr))
+	}
+	add(e.GetAttributeValues("telephoneNumber"))
+	add(e.GetAttributeValues("mobile"))
+	return out
 }
 
 func TestLDAP(cfg *models.LDAPSettings) error {

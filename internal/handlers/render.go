@@ -89,9 +89,15 @@ func (r *Renderer) Render(w http.ResponseWriter, req *http.Request, name string,
 		data = pageData{}
 	}
 	data["AppName"] = r.appName
-	data["User"] = middleware.UserFromContext(req.Context())
+	user := middleware.UserFromContext(req.Context())
+	data["User"] = user
 	data["Tenant"] = middleware.TenantFromContext(req.Context())
 	data["Path"] = req.URL.Path
+	data["SIPEnabled"] = false
+	// Softphone bar is filled via /api/softphone/config; flag helps show shell for staff.
+	if user != nil && user.Role.IsStaff() {
+		data["ShowSoftphone"] = true
+	}
 	var buf bytes.Buffer
 	if err := r.templates.ExecuteTemplate(&buf, name, data); err != nil {
 		http.Error(w, "Ошибка шаблона: "+err.Error(), http.StatusInternalServerError)

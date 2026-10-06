@@ -134,6 +134,7 @@
       <label>Email attr<input type="text" name="email_attr" value="{{.LDAP.EmailAttr}}"></label>
       <label>Name attr<input type="text" name="name_attr" value="{{.LDAP.NameAttr}}"></label>
       <label>Username attr<input type="text" name="username_attr" value="{{.LDAP.UsernameAttr}}"></label>
+      <label>Phone attr<input type="text" name="phone_attr" value="{{.LDAP.PhoneAttr}}" placeholder="telephoneNumber"></label>
       <label>Group attr<input type="text" name="group_attr" value="{{.LDAP.GroupAttr}}"></label>
     </div>
     <label>DN группы специалистов<input type="text" name="agent_group_dn" value="{{.LDAP.AgentGroupDN}}"></label>
@@ -148,6 +149,23 @@
   </form>
   <form method="post" action="/admin/ldap/test" style="margin-top:0.75rem">
     <button class="btn btn-secondary" type="submit">Проверить подключение</button>
+  </form>
+</section>
+
+
+<section class="card" id="sip">
+  <h2>SIP / кол-центр (SIP.js)</h2>
+  <p class="muted">WebSocket SIP для softphone агентов (Asterisk, FreeSWITCH и т.п.). При принятии звонка открывается карточка заявки с телефоном и клиентом, если номер есть в базе.</p>
+  <form method="post" action="/admin/sip" class="stack">
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{if .SIP.Enabled}}checked{{end}}> Включить SIP для организации</label>
+    <label>WebSocket URL<input type="text" name="websocket_url" value="{{.SIP.WebsocketURL}}" placeholder="wss://pbx.example.com:8089/ws"></label>
+    <label>SIP domain<input type="text" name="sip_domain" value="{{.SIP.SIPDomain}}" placeholder="pbx.example.com"></label>
+    <label>Outbound proxy (опционально)<input type="text" name="outbound_proxy" value="{{.SIP.OutboundProxy}}" placeholder="пусто или sip:pbx.example.com:5060"></label>
+    <label>STUN URLs<input type="text" name="stun_urls" value="{{.SIP.STUNURLs}}" placeholder="stun:stun.l.google.com:19302"></label>
+    <label>TURN URLs<input type="text" name="turn_urls" value="{{.SIP.TURNURLs}}"></label>
+    <label>TURN username<input type="text" name="turn_username" value="{{.SIP.TURNUsername}}"></label>
+    <label>TURN password<input type="password" name="turn_password" placeholder="оставьте пустым, чтобы не менять"></label>
+    <button class="btn btn-primary" type="submit">Сохранить SIP</button>
   </form>
 </section>
 

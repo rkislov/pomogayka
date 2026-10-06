@@ -1,0 +1,47 @@
+{{define "pages/clients.html"}}
+{{template "partials/header.html" .}}
+<section class="page-head">
+  <div>
+    <h1>Клиенты и телефоны</h1>
+    <p class="muted">Номера для идентификации входящих звонков. Можно добавить вручную или получить из LDAP при входе клиента.</p>
+  </div>
+</section>
+{{if .Flash}}<div class="alert alert-ok">{{.Flash}}</div>{{end}}
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+{{range .Rows}}
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2 style="font-size:1.1rem">{{.User.FullName}}</h2>
+      <div class="muted">{{.User.Email}}{{if eq .User.Source "ldap"}} · LDAP{{end}}</div>
+    </div>
+  </div>
+  <ul class="list">
+    {{range .Phones}}
+    <li>
+      <strong>{{.Phone}}</strong>
+      {{if .Label}} — {{.Label}}{{end}}
+      {{if .IsPrimary}} · основной{{end}}
+      · {{if eq .Source "ldap"}}LDAP{{else}}вручную{{end}}
+      <form method="post" action="/clients/phones/{{.ID}}/delete" class="inline-form" style="display:inline;margin-left:0.5rem">
+        <button class="btn btn-secondary btn-sm" type="submit">Удалить</button>
+      </form>
+    </li>
+    {{else}}
+    <li class="muted">Номеров нет</li>
+    {{end}}
+  </ul>
+  <form method="post" action="/clients/{{.User.ID}}/phones" class="inline-form" style="margin-top:0.8rem;flex-wrap:wrap">
+    <input type="text" name="phone" required placeholder="+7 900 123-45-67" style="min-width:180px">
+    <input type="text" name="label" placeholder="мобильный / рабочий" style="min-width:140px">
+    <label class="check"><input type="checkbox" name="is_primary" value="1"> основной</label>
+    <button class="btn btn-primary btn-sm" type="submit">Добавить номер</button>
+  </form>
+</section>
+{{else}}
+<section class="card"><p class="muted">В организации пока нет заявителей.</p></section>
+{{end}}
+
+{{template "partials/footer.html" .}}
+{{end}}

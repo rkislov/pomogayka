@@ -123,6 +123,7 @@ type LDAPSettings struct {
 	EmailAttr      string
 	NameAttr       string
 	UsernameAttr   string
+	PhoneAttr      string
 	GroupAttr      string
 	AgentGroupDN   string
 	ManagerGroupDN string
@@ -231,6 +232,56 @@ type DashboardStats struct {
 	ClosedThisWeek int
 	MyAssigned     int
 	TeamAssigned   int
+}
+
+
+type SIPSettings struct {
+	TenantID      string
+	Enabled       bool
+	WebsocketURL  string
+	SIPDomain     string
+	OutboundProxy string
+	STUNURLs      string
+	TURNURLs      string
+	TURNUsername  string
+	TURNPassword  string
+	UpdatedAt     time.Time
+}
+
+func (s SIPSettings) IsConfigured() bool {
+	return s.Enabled && s.WebsocketURL != "" && s.SIPDomain != ""
+}
+
+type UserSIPCredential struct {
+	UserID        string
+	TenantID      string
+	Extension     string
+	AuthUsername  string
+	Password      string
+	DisplayName   string
+	AutoRegister  bool
+	UpdatedAt     time.Time
+}
+
+type PhoneSource string
+
+const (
+	PhoneSourceManual PhoneSource = "manual"
+	PhoneSourceLDAP   PhoneSource = "ldap"
+)
+
+type UserPhone struct {
+	ID              string
+	TenantID        string
+	UserID          string
+	Phone           string
+	PhoneNormalized string
+	Label           string
+	Source          PhoneSource
+	IsPrimary       bool
+	CreatedAt       time.Time
+	UserName        string
+	UserEmail       string
 }
 
 func CanAccessTicket(user *User, ticket *Ticket) bool {

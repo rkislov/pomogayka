@@ -142,6 +142,12 @@ func main() {
 			staff.Use(appmw.RequireStaff)
 			staff.Post("/tickets/{id}/take", app.TicketTake)
 			staff.Post("/tickets/{id}/await", app.TicketAwait)
+			staff.Get("/clients", app.Clients)
+			staff.Post("/clients/{id}/phones", app.ClientPhoneAdd)
+			staff.Post("/clients/phones/{phoneID}/delete", app.ClientPhoneDelete)
+			staff.Get("/api/softphone/config", app.APISoftphoneConfig)
+			staff.Post("/api/softphone/credentials", app.APISoftphoneCredentials)
+			staff.Post("/api/calls/screen-pop", app.APICallScreenPop)
 		})
 
 		private.Group(func(mgr chi.Router) {
@@ -165,6 +171,7 @@ func main() {
 			admin.Post("/admin/mailboxes", app.AdminMailboxSave)
 			admin.Post("/admin/mailboxes/{id}/delete", app.AdminMailboxDelete)
 			admin.Post("/admin/mailboxes/{id}/test", app.AdminMailboxTest)
+			admin.Post("/admin/sip", app.AdminSIPSave)
 		})
 	})
 

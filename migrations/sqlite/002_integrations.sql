@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tenant_ldap_settings (
     email_attr TEXT NOT NULL DEFAULT 'mail',
     name_attr TEXT NOT NULL DEFAULT 'displayName',
     username_attr TEXT NOT NULL DEFAULT 'sAMAccountName',
+    phone_attr TEXT NOT NULL DEFAULT 'telephoneNumber',
     group_attr TEXT NOT NULL DEFAULT 'memberOf',
     agent_group_dn TEXT NOT NULL DEFAULT '',
     manager_group_dn TEXT NOT NULL DEFAULT '',

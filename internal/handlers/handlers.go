@@ -87,6 +87,7 @@ func (a *App) Login(w http.ResponseWriter, r *http.Request) {
 					fail("Не удалось синхронизировать пользователя LDAP")
 					return
 				}
+				_ = a.Store.ReplaceLDAPPhones(tenant.ID, u.ID, lu.Phones)
 			}
 		}
 	}
@@ -202,7 +203,39 @@ func (a *App) TicketsList(w http.ResponseWriter, r *http.Request) {
 func (a *App) TicketNewForm(w http.ResponseWriter, r *http.Request) {
 	user := middleware.UserFromContext(r.Context())
 	queues, _ := a.Store.ListQueues(user.TenantID, true)
-	a.Render.Render(w, r, "pages/ticket_new.html", pageData{"Title": "Новая заявка", "Queues": queues, "Error": ""})
+	clients := []models.User{}
+	if user.Role.IsStaff() {
+		clients, _ = a.Store.ListClientsWithPhones(user.TenantID)
+	}
+	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+	requesterID := strings.TrimSpace(r.URL.Query().Get("requester_id"))
+	fromCall := r.URL.Query().Get("from_call") == "1"
+	title := strings.TrimSpace(r.URL.Query().Get("title"))
+	desc := strings.TrimSpace(r.URL.Query().Get("description"))
+	if fromCall && title == "" {
+		if phone != "" {
+			title = "Входящий звонок " + phone
+		} else {
+			title = "Входящий звонок"
+		}
+	}
+	if fromCall && desc == "" {
+		desc = "Заявка создана при принятии звонка."
+		if phone != "" {
+			desc += "\nТелефон: " + phone
+		}
+	}
+	requesterName := ""
+	if requesterID != "" {
+		if ru, err := a.Store.GetUserByID(requesterID); err == nil && ru.TenantID == user.TenantID {
+			requesterName = ru.FullName
+		}
+	}
+	a.Render.Render(w, r, "pages/ticket_new.html", pageData{
+		"Title": "Новая заявка", "Queues": queues, "Error": "", "Clients": clients,
+		"FormTitle": title, "FormDescription": desc, "Phone": phone,
+		"RequesterID": requesterID, "RequesterName": requesterName, "FromCall": fromCall,
+	})
 }
 
 func (a *App) TicketCreate(w http.ResponseWriter, r *http.Request) {
@@ -219,18 +252,37 @@ func (a *App) TicketCreate(w http.ResponseWriter, r *http.Request) {
 	if queueID != "" {
 		qid = &queueID
 	}
+	authorID := user.ID
+	requesterID := strings.TrimSpace(r.FormValue("requester_id"))
+	phone := strings.TrimSpace(r.FormValue("phone"))
+	if user.Role.IsStaff() && requesterID != "" {
+		if ru, err := a.Store.GetUserByID(requesterID); err == nil && ru.TenantID == user.TenantID && ru.IsActive {
+			authorID = ru.ID
+		}
+	}
+	if phone != "" && !strings.Contains(description, phone) {
+		description = strings.TrimSpace(description + "\n\nТелефон: " + phone)
+	}
 	queues, _ := a.Store.ListQueues(user.TenantID, true)
+	clients := []models.User{}
+	if user.Role.IsStaff() {
+		clients, _ = a.Store.ListClientsWithPhones(user.TenantID)
+	}
 	if len(title) < 3 || len(description) < 3 {
 		a.Render.Render(w, r, "pages/ticket_new.html", pageData{
-			"Title": "Новая заявка", "Queues": queues, "Error": "Заполните тему и описание (минимум 3 символа)",
+			"Title": "Новая заявка", "Queues": queues, "Clients": clients, "Error": "Заполните тему и описание (минимум 3 символа)",
 			"FormTitle": title, "FormDescription": description, "Priority": priority, "QueueID": queueID,
+			"Phone": phone, "RequesterID": requesterID,
 		})
 		return
 	}
-	t, err := a.Store.CreateTicket(user.TenantID, title, description, priority, user.ID, qid)
+	t, err := a.Store.CreateTicket(user.TenantID, title, description, priority, authorID, qid)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if user.Role.IsStaff() && authorID != user.ID {
+		_ = a.Store.AssignTicket(t.ID, user.ID)
 	}
 	http.Redirect(w, r, "/tickets/"+t.ID, http.StatusSeeOther)
 }
@@ -406,6 +458,7 @@ func (a *App) Admin(w http.ResponseWriter, r *http.Request) {
 	agents, _ := a.Store.ListAgents(user.TenantID)
 	domains, _ := a.Store.ListTenantDomains(user.TenantID)
 	ldap, _ := a.Store.GetLDAPSettings(user.TenantID)
+	sip, _ := a.Store.GetSIPSettings(user.TenantID)
 	mailboxes, _ := a.Store.ListMailboxes(user.TenantID)
 	managerNames := map[string]string{}
 	for _, m := range managers {
@@ -414,7 +467,7 @@ func (a *App) Admin(w http.ResponseWriter, r *http.Request) {
 	a.Render.Render(w, r, "pages/admin.html", pageData{
 		"Title": "Админка", "Users": users, "Queues": queues, "Templates": templates,
 		"Tenants": tenants, "Managers": managers, "Agents": agents, "ManagerNames": managerNames,
-		"Domains": domains, "LDAP": ldap, "Mailboxes": mailboxes,
+		"Domains": domains, "LDAP": ldap, "SIP": sip, "Mailboxes": mailboxes,
 		"Flash": a.Sessions.PopString(r.Context(), "flash"),
 		"Error": a.Sessions.PopString(r.Context(), "flash_error"),
 	})
@@ -567,6 +620,7 @@ func (a *App) AdminLDAPSave(w http.ResponseWriter, r *http.Request) {
 		EmailAttr:      strings.TrimSpace(r.FormValue("email_attr")),
 		NameAttr:       strings.TrimSpace(r.FormValue("name_attr")),
 		UsernameAttr:   strings.TrimSpace(r.FormValue("username_attr")),
+		PhoneAttr:      strings.TrimSpace(r.FormValue("phone_attr")),
 		GroupAttr:      strings.TrimSpace(r.FormValue("group_attr")),
 		AgentGroupDN:   strings.TrimSpace(r.FormValue("agent_group_dn")),
 		ManagerGroupDN: strings.TrimSpace(r.FormValue("manager_group_dn")),

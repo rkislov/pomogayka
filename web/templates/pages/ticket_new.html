@@ -3,13 +3,25 @@
 
 <section class="page-head">
   <div>
-    <h1>Новая заявка</h1>
-    <p class="muted">Опишите проблему или запрос</p>
+    <h1>{{if .FromCall}}Карточка по звонку{{else}}Новая заявка{{end}}</h1>
+    <p class="muted">{{if .FromCall}}Данные предзаполнены из входящего вызова{{else}}Опишите проблему или запрос{{end}}</p>
   </div>
 </section>
 <section class="card narrow">
   {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+  {{if .FromCall}}<div class="alert alert-ok">Входящий звонок{{if .Phone}}: {{.Phone}}{{end}}{{if .RequesterName}} · {{.RequesterName}}{{end}}</div>{{end}}
   <form method="post" action="/tickets" class="stack" id="ticket-form">
+    {{if .Phone}}<input type="hidden" name="phone" value="{{.Phone}}">{{end}}
+    {{if or (eq .User.Role "agent") (eq .User.Role "manager") (eq .User.Role "admin")}}
+    <label>Заявитель
+      <select name="requester_id">
+        <option value="">Я / без привязки к клиенту</option>
+        {{range .Clients}}
+        <option value="{{.ID}}" {{if eq .ID $.RequesterID}}selected{{end}}>{{.FullName}} — {{.Email}}</option>
+        {{end}}
+      </select>
+    </label>
+    {{end}}
     <label>Тема<input type="text" name="title" value="{{.FormTitle}}" required minlength="3"></label>
     <label>Описание
       <textarea name="description" rows="8" required minlength="3" placeholder="Текст обращения">{{.FormDescription}}</textarea>
