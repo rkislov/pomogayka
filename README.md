@@ -16,6 +16,8 @@
 - Админка: пользователи/роли, очереди, шаблоны уведомлений
 - Переменные шаблонов: `ticket.number`, `ticket.title`, `ticket.description` / `ticket.appeal_text`, `ticket.status`, `ticket.queue`, `author.full_name`, `assignee.full_name`, `comment.text`
 - SQLite из коробки, сессии в cookie
+- PostgreSQL: тот же код, выбор через `DATABASE_URL`
+- Миграция данных SQLite → PostgreSQL отдельной утилитой
 - Telegram-бот: привязка аккаунта, создание заявок, список, ответы и уведомления
 - Jabber/XMPP-бот: те же команды и уведомления заявителю
 
@@ -40,6 +42,46 @@ docker compose up --build
 ```
 
 
+
+
+## PostgreSQL
+
+По умолчанию используется SQLite. Для PostgreSQL задайте:
+
+```bash
+DATABASE_URL=postgres://pomogayka:pomogayka@localhost:5432/pomogayka?sslmode=disable
+go run ./cmd/server
+```
+
+Поднять Postgres через Docker:
+
+```bash
+docker compose --profile postgres up -d postgres
+```
+
+### Миграция из SQLite в PostgreSQL
+
+1. Остановите приложение.
+2. Поднимите пустую БД PostgreSQL.
+3. Запустите:
+
+```bash
+go run ./cmd/migrate-sqlite-to-postgres \
+  -sqlite 'file:data/pomogayka.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)' \
+  -postgres 'postgres://pomogayka:pomogayka@localhost:5432/pomogayka?sslmode=disable'
+```
+
+Проверка без записи:
+
+```bash
+go run ./cmd/migrate-sqlite-to-postgres -dry-run \
+  -sqlite 'file:data/pomogayka.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)' \
+  -postgres 'postgres://pomogayka:pomogayka@localhost:5432/pomogayka?sslmode=disable'
+```
+
+Утилита применяет схему Postgres, очищает целевые таблицы и копирует tenants, users, queues, tickets, comments, templates, counters.
+
+После миграции запускайте сервер с `DATABASE_URL` на PostgreSQL.
 
 ## Мультитенантность и менеджеры
 
@@ -97,7 +139,7 @@ JABBER_PASSWORD=secret
 - Go + chi
 - `html/template` + embed
 - HTMX
-- SQLite (`modernc.org/sqlite`)
+- SQLite (`modernc.org/sqlite`) или PostgreSQL (`pgx`)
 - scs (сессии)
 
 ## Структура

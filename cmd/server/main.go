@@ -20,7 +20,15 @@ import (
 func main() {
 	cfg := config.Load()
 
-	migration, err := pomogayka.Content.ReadFile("migrations/001_init.sql")
+	dialect, err := db.DetectDialect(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	migrationPath := "migrations/sqlite/001_init.sql"
+	if dialect == db.DialectPostgres {
+		migrationPath = "migrations/postgres/001_init.sql"
+	}
+	migration, err := pomogayka.Content.ReadFile(migrationPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,6 +39,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer database.Close()
+	log.Printf("database dialect: %s", dialect)
 
 	store := db.NewStore(database)
 	sessions := auth.NewSessionManager(cfg)

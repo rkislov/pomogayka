@@ -12,10 +12,10 @@ import (
 )
 
 type Store struct {
-	DB *sql.DB
+	DB *Conn
 }
 
-func NewStore(database *sql.DB) *Store {
+func NewStore(database *Conn) *Store {
 	return &Store{DB: database}
 }
 
@@ -281,7 +281,7 @@ func (s *Store) CreateTenant(name, slug string) (*models.Tenant, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, _ = s.DB.Exec(`INSERT OR IGNORE INTO ticket_counters (name, value) VALUES (?, 0)`, "tickets:"+t.ID)
+	_, _ = s.DB.InsertIgnore(`INSERT INTO ticket_counters (name, value) VALUES (?, 0)`, "tickets:"+t.ID)
 	now := time.Now().UTC().Format(time.RFC3339)
 	defaults := []struct{ event, subject, body string }{
 		{"ticket_created", "Помогайка: заявка #{{ticket.number}} создана", "Заявка #{{ticket.number}} {{ticket.title}} создана.\n\n{{ticket.description}}"},
@@ -290,8 +290,8 @@ func (s *Store) CreateTenant(name, slug string) (*models.Tenant, error) {
 		{"assigned", "Помогайка: назначена #{{ticket.number}}", "Заявка #{{ticket.number}} назначена на {{assignee.full_name}}."},
 	}
 	for _, d := range defaults {
-		_, _ = s.DB.Exec(
-			`INSERT OR IGNORE INTO notification_templates (id, tenant_id, event, subject, body, is_active, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?)`,
+		_, _ = s.DB.InsertIgnore(
+			`INSERT INTO notification_templates (id, tenant_id, event, subject, body, is_active, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?)`,
 			uuid.NewString(), t.ID, d.event, d.subject, d.body, now,
 		)
 	}
