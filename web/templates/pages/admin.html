@@ -3,22 +3,38 @@
 <section class="page-head">
   <div>
     <h1>Админка</h1>
-    <p class="muted">Пользователи, очереди и шаблоны уведомлений</p>
+    <p class="muted">Организации, пользователи, менеджеры, очереди и шаблоны</p>
   </div>
 </section>
 {{if .Flash}}<div class="alert alert-ok">{{.Flash}}</div>{{end}}
 
 <section class="card">
-  <h2>Пользователи</h2>
+  <h2>Организации (тенанты)</h2>
+  <ul class="list">
+    {{range .Tenants}}
+    <li><strong>{{.Name}}</strong> — <code>{{.Slug}}</code>{{if not .IsActive}} (неактивна){{end}}</li>
+    {{end}}
+  </ul>
+  <form method="post" action="/admin/tenants" class="stack narrow-form">
+    <label>Название<input type="text" name="name" required placeholder="ООО Ромашка"></label>
+    <label>Slug<input type="text" name="slug" required placeholder="romashka" pattern="[a-z0-9][a-z0-9-]{1,62}"></label>
+    <button class="btn btn-primary" type="submit">Создать организацию</button>
+  </form>
+  <p class="muted">При регистрации заявитель указывает slug организации.</p>
+</section>
+
+<section class="card">
+  <h2>Пользователи текущей организации</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Telegram</th><th>Jabber</th><th></th></tr></thead>
+      <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Менеджер</th><th>Telegram</th><th>Jabber</th><th></th></tr></thead>
       <tbody>
       {{range .Users}}
         <tr>
           <td>{{.FullName}}</td>
           <td>{{.Email}}</td>
           <td>{{roleLabel .Role}}</td>
+          <td>{{if .ManagerID}}{{index $.ManagerNames .ManagerID}}{{else}}—{{end}}</td>
           <td>{{if .TelegramID}}привязан{{else}}—{{end}}</td>
           <td>{{if .JabberJID}}{{.JabberJID}}{{else}}—{{end}}</td>
           <td>
@@ -26,9 +42,10 @@
               <select name="role">
                 <option value="client" {{if eq .Role "client"}}selected{{end}}>Заявитель</option>
                 <option value="agent" {{if eq .Role "agent"}}selected{{end}}>Специалист</option>
+                <option value="manager" {{if eq .Role "manager"}}selected{{end}}>Менеджер</option>
                 <option value="admin" {{if eq .Role "admin"}}selected{{end}}>Администратор</option>
               </select>
-              <button class="btn btn-secondary btn-sm" type="submit">Сохранить</button>
+              <button class="btn btn-secondary btn-sm" type="submit">Роль</button>
             </form>
           </td>
         </tr>
@@ -36,6 +53,26 @@
       </tbody>
     </table>
   </div>
+</section>
+
+<section class="card">
+  <h2>Назначение менеджеров специалистам</h2>
+  <p class="muted">Менеджер видит команду и может назначать заявки своим специалистам.</p>
+  {{range .Agents}}
+  <form method="post" action="/admin/users/{{.ID}}/manager" class="inline-form" style="margin-bottom:0.6rem">
+    <span style="min-width:180px;display:inline-block">{{.FullName}}</span>
+    <select name="manager_id">
+      <option value="">Без менеджера</option>
+      {{$agentManager := .ManagerID}}
+      {{range $.Managers}}
+      <option value="{{.ID}}" {{if eq .ID $agentManager}}selected{{end}}>{{.FullName}} ({{roleLabel .Role}})</option>
+      {{end}}
+    </select>
+    <button class="btn btn-secondary btn-sm" type="submit">Сохранить</button>
+  </form>
+  {{else}}
+  <p class="muted">Нет специалистов. Сначала назначьте роль «Специалист» пользователю.</p>
+  {{end}}
 </section>
 
 <section class="card">
@@ -54,7 +91,7 @@
 
 <section class="card">
   <h2>Шаблоны уведомлений</h2>
-  <p class="muted">Переменные: ticket.number, ticket.title, ticket.description (текст заявки), ticket.appeal_text, ticket.status, ticket.queue, author.full_name, assignee.full_name, comment.text — в двойных фигурных скобках.</p>
+  <p class="muted">Переменные: ticket.number, ticket.title, ticket.description, ticket.appeal_text, ticket.status, ticket.queue, author.full_name, assignee.full_name, comment.text</p>
   {{range .Templates}}
   <form method="post" action="/admin/templates/{{.ID}}" class="stack template-form">
     <div class="eyebrow">{{.Event}}</div>

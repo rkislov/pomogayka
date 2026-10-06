@@ -6,6 +6,7 @@
   <p class="muted">Создайте аккаунт заявителя</p>
   {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
   <form method="post" action="/register" class="stack">
+    <label>Организация (slug)<input type="text" name="tenant_slug" value="{{.TenantSlug}}" required placeholder="default"></label>
     <label>ФИО<input type="text" name="full_name" value="{{.FullName}}" required></label>
     <label>Email<input type="email" name="email" value="{{.Email}}" required></label>
     <label>Пароль<input type="password" name="password" minlength="8" required></label>

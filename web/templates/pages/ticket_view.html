@@ -19,6 +19,15 @@
     <form method="post" action="/tickets/{{.Ticket.ID}}/take"><button class="btn btn-secondary" type="submit">В работу</button></form>
     <form method="post" action="/tickets/{{.Ticket.ID}}/await"><button class="btn btn-ghost" type="submit">Ожидание ответа</button></form>
     {{end}}
+    {{if and .Agents (ne .Ticket.Status "closed")}}
+    <form method="post" action="/tickets/{{.Ticket.ID}}/assign" class="inline-form">
+      <select name="agent_id" required>
+        <option value="">Назначить специалисту</option>
+        {{range .Agents}}<option value="{{.ID}}">{{.FullName}}</option>{{end}}
+      </select>
+      <button class="btn btn-secondary btn-sm" type="submit">Назначить</button>
+    </form>
+    {{end}}
     {{if ne .Ticket.Status "closed"}}
     <form method="post" action="/tickets/{{.Ticket.ID}}/close"><button class="btn btn-danger" type="submit">Закрыть</button></form>
     {{end}}

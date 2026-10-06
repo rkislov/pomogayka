@@ -16,6 +16,9 @@
   {{if .User.Role.IsStaff}}
   <div class="stat"><div class="stat-label">Мои назначенные</div><div class="stat-value">{{.Stats.MyAssigned}}</div></div>
   {{end}}
+  {{if or (eq .User.Role "manager") (eq .User.Role "admin")}}
+  <div class="stat"><div class="stat-label">У команды</div><div class="stat-value">{{.Stats.TeamAssigned}}</div></div>
+  {{end}}
 </div>
 <section class="card">
   <div class="card-head"><h2>Последние заявки</h2><a href="/tickets">Все заявки</a></div>

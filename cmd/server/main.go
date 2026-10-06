@@ -115,12 +115,20 @@ func main() {
 			staff.Post("/tickets/{id}/await", app.TicketAwait)
 		})
 
+		private.Group(func(mgr chi.Router) {
+			mgr.Use(appmw.RequireManager)
+			mgr.Get("/team", app.Team)
+			mgr.Post("/tickets/{id}/assign", app.TicketAssign)
+		})
+
 		private.Group(func(admin chi.Router) {
 			admin.Use(appmw.RequireAdmin)
 			admin.Get("/admin", app.Admin)
 			admin.Post("/admin/users/{id}/role", app.AdminUserRole)
+			admin.Post("/admin/users/{id}/manager", app.AdminUserManager)
 			admin.Post("/admin/queues", app.AdminQueueCreate)
 			admin.Post("/admin/templates/{id}", app.AdminTemplateUpdate)
+			admin.Post("/admin/tenants", app.AdminTenantCreate)
 		})
 	})
 

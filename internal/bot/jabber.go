@@ -250,7 +250,7 @@ func (b *JabberBot) createFromText(fromJID, text string) {
 		b.reply(fromJID, "Нужны тема и описание (минимум 3 символа).\nПример: Не работает VPN | Не подключается с утра")
 		return
 	}
-	ticket, err := b.store.CreateTicket(title, description, models.PriorityMedium, user.ID, nil)
+	ticket, err := b.store.CreateTicket(user.TenantID, title, description, models.PriorityMedium, user.ID, nil)
 	b.clearState(fromJID)
 	if err != nil {
 		b.reply(fromJID, "Не удалось создать заявку: "+err.Error())
@@ -300,7 +300,7 @@ func (b *JabberBot) cmdTicket(fromJID, args string) {
 		b.reply(fromJID, "Заявка не найдена.")
 		return
 	}
-	if !user.Role.IsStaff() && ticket.AuthorID != user.ID {
+	if !models.CanAccessTicket(user, ticket) {
 		b.reply(fromJID, "Нет доступа к этой заявке.")
 		return
 	}
@@ -337,7 +337,7 @@ func (b *JabberBot) cmdComment(fromJID, args string) {
 		b.reply(fromJID, "Заявка не найдена.")
 		return
 	}
-	if !user.Role.IsStaff() && ticket.AuthorID != user.ID {
+	if !models.CanAccessTicket(user, ticket) {
 		b.reply(fromJID, "Нет доступа к этой заявке.")
 		return
 	}
@@ -364,7 +364,7 @@ func (b *JabberBot) addComment(fromJID, ticketID, body string) {
 		b.reply(fromJID, "Заявка не найдена.")
 		return
 	}
-	if !user.Role.IsStaff() && ticket.AuthorID != user.ID {
+	if !models.CanAccessTicket(user, ticket) {
 		b.reply(fromJID, "Нет доступа.")
 		return
 	}

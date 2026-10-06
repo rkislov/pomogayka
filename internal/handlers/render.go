@@ -90,6 +90,7 @@ func (r *Renderer) Render(w http.ResponseWriter, req *http.Request, name string,
 	}
 	data["AppName"] = r.appName
 	data["User"] = middleware.UserFromContext(req.Context())
+	data["Tenant"] = middleware.TenantFromContext(req.Context())
 	data["Path"] = req.URL.Path
 	var buf bytes.Buffer
 	if err := r.templates.ExecuteTemplate(&buf, name, data); err != nil {

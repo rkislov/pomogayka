@@ -182,7 +182,7 @@ func (b *TelegramBot) createFromText(chatID int64, text string) {
 		b.reply(chatID, "Нужны тема и описание (минимум 3 символа).\nПример: Не работает VPN | Не подключается с утра")
 		return
 	}
-	ticket, err := b.store.CreateTicket(title, description, models.PriorityMedium, user.ID, nil)
+	ticket, err := b.store.CreateTicket(user.TenantID, title, description, models.PriorityMedium, user.ID, nil)
 	b.clearState(chatID)
 	if err != nil {
 		b.reply(chatID, "Не удалось создать заявку: "+err.Error())
@@ -233,7 +233,7 @@ func (b *TelegramBot) cmdTicket(chatID int64, args string) {
 		b.reply(chatID, "Заявка не найдена.")
 		return
 	}
-	if !user.Role.IsStaff() && ticket.AuthorID != user.ID {
+	if !models.CanAccessTicket(user, ticket) {
 		b.reply(chatID, "Нет доступа к этой заявке.")
 		return
 	}
@@ -270,7 +270,7 @@ func (b *TelegramBot) cmdComment(chatID int64, args string) {
 		b.reply(chatID, "Заявка не найдена.")
 		return
 	}
-	if !user.Role.IsStaff() && ticket.AuthorID != user.ID {
+	if !models.CanAccessTicket(user, ticket) {
 		b.reply(chatID, "Нет доступа к этой заявке.")
 		return
 	}
@@ -297,7 +297,7 @@ func (b *TelegramBot) addComment(chatID int64, ticketID, body string) {
 		b.reply(chatID, "Заявка не найдена.")
 		return
 	}
-	if !user.Role.IsStaff() && ticket.AuthorID != user.ID {
+	if !models.CanAccessTicket(user, ticket) {
 		b.reply(chatID, "Нет доступа.")
 		return
 	}

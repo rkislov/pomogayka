@@ -5,15 +5,18 @@ import "time"
 type Role string
 
 const (
-	RoleClient Role = "client"
-	RoleAgent  Role = "agent"
-	RoleAdmin  Role = "admin"
+	RoleClient  Role = "client"
+	RoleAgent   Role = "agent"
+	RoleManager Role = "manager"
+	RoleAdmin   Role = "admin"
 )
 
 func (r Role) Label() string {
 	switch r {
 	case RoleAdmin:
 		return "Администратор"
+	case RoleManager:
+		return "Менеджер"
 	case RoleAgent:
 		return "Специалист"
 	default:
@@ -22,7 +25,15 @@ func (r Role) Label() string {
 }
 
 func (r Role) IsStaff() bool {
-	return r == RoleAgent || r == RoleAdmin
+	return r == RoleAgent || r == RoleManager || r == RoleAdmin
+}
+
+func (r Role) IsManager() bool {
+	return r == RoleManager || r == RoleAdmin
+}
+
+func (r Role) IsAdmin() bool {
+	return r == RoleAdmin
 }
 
 type TicketStatus string
@@ -76,20 +87,34 @@ func (p Priority) Label() string {
 	}
 }
 
+type Tenant struct {
+	ID        string
+	Name      string
+	Slug      string
+	IsActive  bool
+	CreatedAt time.Time
+}
+
 type User struct {
 	ID           string
+	TenantID     string
 	Email        string
 	FullName     string
 	PasswordHash string
 	Role         Role
+	ManagerID    string
 	IsActive     bool
 	TelegramID   *int64
 	JabberJID    string
 	CreatedAt    time.Time
+
+	Tenant  *Tenant
+	Manager *User
 }
 
 type Queue struct {
 	ID          string
+	TenantID    string
 	Name        string
 	Description string
 	IsActive    bool
@@ -97,6 +122,7 @@ type Queue struct {
 
 type Ticket struct {
 	ID          string
+	TenantID    string
 	Number      string
 	Title       string
 	Description string
@@ -126,6 +152,7 @@ type Comment struct {
 
 type NotificationTemplate struct {
 	ID        string
+	TenantID  string
 	Event     string
 	Subject   string
 	Body      string
@@ -139,4 +166,18 @@ type DashboardStats struct {
 	Awaiting       int
 	ClosedThisWeek int
 	MyAssigned     int
+	TeamAssigned   int
+}
+
+func CanAccessTicket(user *User, ticket *Ticket) bool {
+	if user == nil || ticket == nil {
+		return false
+	}
+	if user.TenantID != "" && ticket.TenantID != "" && user.TenantID != ticket.TenantID {
+		return false
+	}
+	if user.Role.IsAdmin() || user.Role == RoleManager || user.Role == RoleAgent {
+		return true
+	}
+	return ticket.AuthorID == user.ID
 }

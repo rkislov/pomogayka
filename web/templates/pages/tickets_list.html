@@ -20,6 +20,9 @@
   {{if .User.Role.IsStaff}}
   <label class="check"><input type="checkbox" name="mine" value="1" {{if .Mine}}checked{{end}}> Только мои</label>
   {{end}}
+  {{if or (eq .User.Role "manager") (eq .User.Role "admin")}}
+  <label class="check"><input type="checkbox" name="team" value="1" {{if .Team}}checked{{end}}> Команда</label>
+  {{end}}
   <button class="btn btn-secondary" type="submit">Применить</button>
 </form>
 <section class="card">

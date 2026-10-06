@@ -1,0 +1,39 @@
+{{define "pages/team.html"}}
+{{template "partials/header.html" .}}
+<section class="page-head">
+  <div>
+    <h1>Команда</h1>
+    <p class="muted">Специалисты под вашим контролем и их заявки</p>
+  </div>
+  <a class="btn btn-secondary" href="/tickets?team=1">Заявки команды</a>
+</section>
+{{if .Flash}}<div class="alert alert-ok">{{.Flash}}</div>{{end}}
+
+<section class="card">
+  <h2>Специалисты</h2>
+  {{if .Agents}}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Имя</th><th>Email</th><th>Менеджер</th></tr></thead>
+      <tbody>
+      {{range .Agents}}
+        <tr>
+          <td>{{.FullName}}</td>
+          <td>{{.Email}}</td>
+          <td>{{if .ManagerID}}назначен{{else}}—{{end}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="muted">Пока нет специалистов в команде. Администратор может назначить менеджера специалисту в админке.</p>
+  {{end}}
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Заявки</h2></div>
+  {{template "partials/ticket_table.html" .}}
+</section>
+{{template "partials/footer.html" .}}
+{{end}}
