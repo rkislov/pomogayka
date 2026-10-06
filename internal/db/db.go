@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,8 +18,11 @@ import (
 	"github.com/rkislov/pomogayka/internal/models"
 )
 
-// MigrationSQL is optional override; otherwise Open loads dialect-specific file.
+// MigrationSQL is optional override for 001; MigrationSQLExtra may hold 002+.
+// Prefer MigrationFiles (ordered full SQL texts) when set by cmd/server.
 var MigrationSQL string
+var MigrationSQLExtra string
+var MigrationFiles []string
 
 func Open(cfg config.Config) (*Conn, error) {
 	dialect, err := DetectDialect(cfg.DatabaseURL)
@@ -82,20 +86,47 @@ func Open(cfg config.Config) (*Conn, error) {
 }
 
 func applyMigrations(conn *Conn) error {
-	sqlText := MigrationSQL
-	if sqlText == "" {
-		path := "migrations/sqlite/001_init.sql"
-		if conn.Dialect == DialectPostgres {
-			path = "migrations/postgres/001_init.sql"
+	files := MigrationFiles
+	if len(files) == 0 {
+		if MigrationSQL != "" {
+			files = append(files, MigrationSQL)
+		} else {
+			dir := "migrations/sqlite"
+			if conn.Dialect == DialectPostgres {
+				dir = "migrations/postgres"
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				return fmt.Errorf("read migrations dir %s: %w", dir, err)
+			}
+			var names []string
+			for _, e := range entries {
+				if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+					names = append(names, e.Name())
+				}
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				b, err := os.ReadFile(filepath.Join(dir, name))
+				if err != nil {
+					return err
+				}
+				files = append(files, string(b))
+			}
 		}
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read migration %s: %w", path, err)
+		if MigrationSQLExtra != "" {
+			files = append(files, MigrationSQLExtra)
 		}
-		sqlText = string(b)
 	}
-	_, err := conn.SQL.Exec(sqlText) // no placeholders
-	return err
+	for i, sqlText := range files {
+		if strings.TrimSpace(sqlText) == "" {
+			continue
+		}
+		if _, err := conn.SQL.Exec(sqlText); err != nil {
+			return fmt.Errorf("migration %d: %w", i+1, err)
+		}
+	}
+	return nil
 }
 
 func ensureSchema(conn *Conn) error {
@@ -106,7 +137,39 @@ func ensureSchema(conn *Conn) error {
 }
 
 func ensurePostgresSchema(conn *Conn) error {
-	_, err := ensureDefaultTenant(conn)
+	tenantID, err := ensureDefaultTenant(conn)
+	if err != nil {
+		return err
+	}
+	for _, col := range []struct{ table, column, decl string }{
+		{"users", "source", "TEXT NOT NULL DEFAULT 'manual'"},
+		{"users", "external_id", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := addColumnIfMissingPG(conn, col.table, col.column, col.decl); err != nil {
+			return err
+		}
+	}
+	if err := ensureIntegrationTables(conn); err != nil {
+		return err
+	}
+	_ = tenantID
+	return nil
+}
+
+func addColumnIfMissingPG(conn *Conn, table, column, decl string) error {
+	var exists bool
+	err := conn.QueryRow(`
+SELECT EXISTS (
+  SELECT 1 FROM information_schema.columns
+  WHERE table_name = ? AND column_name = ?
+)`, table, column).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	_, err = conn.SQL.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, table, column, decl))
 	return err
 }
 
@@ -130,14 +193,79 @@ func ensureSQLiteSchema(conn *Conn) error {
 	if err := addColumnIfMissing(conn, "notification_templates", "tenant_id", "TEXT"); err != nil {
 		return err
 	}
+	if err := addColumnIfMissing(conn, "users", "source", "TEXT NOT NULL DEFAULT 'manual'"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(conn, "users", "external_id", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
 	_, _ = conn.Exec(`UPDATE queues SET tenant_id = ? WHERE tenant_id IS NULL OR tenant_id = ''`, defaultTenantID)
 	_, _ = conn.Exec(`UPDATE tickets SET tenant_id = ? WHERE tenant_id IS NULL OR tenant_id = ''`, defaultTenantID)
 	_, _ = conn.Exec(`UPDATE notification_templates SET tenant_id = ? WHERE tenant_id IS NULL OR tenant_id = ''`, defaultTenantID)
 	_, _ = conn.Exec(`CREATE INDEX IF NOT EXISTS idx_tickets_tenant ON tickets(tenant_id)`)
 	_, _ = conn.Exec(`CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id)`)
 	_, _ = conn.Exec(`CREATE INDEX IF NOT EXISTS idx_users_manager ON users(manager_id)`)
+	_, _ = conn.Exec(`CREATE INDEX IF NOT EXISTS idx_users_external ON users(tenant_id, external_id)`)
 	_, _ = conn.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL`)
 	_, _ = conn.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_jabber_jid ON users(jabber_jid) WHERE jabber_jid IS NOT NULL AND jabber_jid != ''`)
+	return ensureIntegrationTables(conn)
+}
+
+func ensureIntegrationTables(conn *Conn) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS tenant_domains (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    host TEXT NOT NULL UNIQUE,
+    is_primary INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+)`,
+		`CREATE INDEX IF NOT EXISTS idx_tenant_domains_tenant ON tenant_domains(tenant_id)`,
+		`CREATE TABLE IF NOT EXISTS tenant_ldap_settings (
+    tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    provider TEXT NOT NULL DEFAULT 'ad',
+    server_url TEXT NOT NULL DEFAULT '',
+    bind_dn TEXT NOT NULL DEFAULT '',
+    bind_password TEXT NOT NULL DEFAULT '',
+    user_base_dn TEXT NOT NULL DEFAULT '',
+    user_filter TEXT NOT NULL DEFAULT '(&(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))',
+    email_attr TEXT NOT NULL DEFAULT 'mail',
+    name_attr TEXT NOT NULL DEFAULT 'displayName',
+    username_attr TEXT NOT NULL DEFAULT 'sAMAccountName',
+    group_attr TEXT NOT NULL DEFAULT 'memberOf',
+    agent_group_dn TEXT NOT NULL DEFAULT '',
+    manager_group_dn TEXT NOT NULL DEFAULT '',
+    admin_group_dn TEXT NOT NULL DEFAULT '',
+    use_tls INTEGER NOT NULL DEFAULT 1,
+    start_tls INTEGER NOT NULL DEFAULT 0,
+    insecure_tls INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+)`,
+		`CREATE TABLE IF NOT EXISTS email_mailboxes (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    queue_id TEXT REFERENCES queues(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    from_email TEXT NOT NULL DEFAULT '',
+    smtp_host TEXT NOT NULL DEFAULT '',
+    smtp_port INTEGER NOT NULL DEFAULT 587,
+    smtp_username TEXT NOT NULL DEFAULT '',
+    smtp_password TEXT NOT NULL DEFAULT '',
+    smtp_use_tls INTEGER NOT NULL DEFAULT 1,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+)`,
+		`CREATE INDEX IF NOT EXISTS idx_mailbox_tenant ON email_mailboxes(tenant_id)`,
+	}
+	for _, s := range stmts {
+		if _, err := conn.Exec(s); err != nil {
+			return err
+		}
+	}
+	// Partial unique indexes (SQLite + Postgres)
+	_, _ = conn.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_mailbox_tenant_default ON email_mailboxes(tenant_id) WHERE queue_id IS NULL`)
+	_, _ = conn.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_mailbox_queue ON email_mailboxes(queue_id) WHERE queue_id IS NOT NULL`)
 	return nil
 }
 
@@ -194,15 +322,18 @@ func migrateLegacyUsers(conn *Conn, defaultTenantID string) error {
 CREATE TABLE IF NOT EXISTS users_mt (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
     full_name TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL CHECK (role IN ('client', 'agent', 'manager', 'admin')),
     manager_id TEXT,
+    source TEXT NOT NULL DEFAULT 'manual',
+    external_id TEXT NOT NULL DEFAULT '',
     is_active INTEGER NOT NULL DEFAULT 1,
     telegram_id INTEGER,
     jabber_jid TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    UNIQUE(tenant_id, email)
 )`)
 	if err != nil {
 		return err
@@ -210,6 +341,8 @@ CREATE TABLE IF NOT EXISTS users_mt (
 
 	hasTelegram := cols["telegram_id"]
 	hasJabber := cols["jabber_jid"]
+	hasSource := cols["source"]
+	hasExternal := cols["external_id"]
 
 	selectCols := "id, email, full_name, password_hash, role, is_active, created_at"
 	if hasTelegram {
@@ -255,10 +388,14 @@ CREATE TABLE IF NOT EXISTS users_mt (
 		if telegram.Valid {
 			tg = telegram.Int64
 		}
+		source := "manual"
+		external := ""
+		_ = hasSource
+		_ = hasExternal
 		_, err = conn.InsertIgnore(
-			`INSERT INTO users_mt (id, tenant_id, email, full_name, password_hash, role, manager_id, is_active, telegram_id, jabber_jid, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
-			id, defaultTenantID, email, fullName, hash, role, active, tg, jabber, created,
+			`INSERT INTO users_mt (id, tenant_id, email, full_name, password_hash, role, manager_id, source, external_id, is_active, telegram_id, jabber_jid, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+			id, defaultTenantID, email, fullName, hash, role, source, external, active, tg, jabber, created,
 		)
 		if err != nil {
 			return err
@@ -338,8 +475,8 @@ func seed(conn *Conn, cfg config.Config) error {
 			return err
 		}
 		_, err = conn.Exec(
-			`INSERT INTO users (id, tenant_id, email, full_name, password_hash, role, manager_id, is_active, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, NULL, 1, ?)`,
+			`INSERT INTO users (id, tenant_id, email, full_name, password_hash, role, manager_id, source, external_id, is_active, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, NULL, 'manual', '', 1, ?)`,
 			uuid.NewString(), tenantID, strings.ToLower(cfg.AdminEmail), cfg.AdminFullName, string(hash), models.RoleAdmin, time.Now().UTC().Format(time.RFC3339),
 		)
 		if err != nil {

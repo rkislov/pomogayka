@@ -3,11 +3,12 @@
 
 <section class="auth-card">
   <h1>{{.AppName}}</h1>
-  <p class="muted">Вход в систему поддержки</p>
+  {{if .PortalTenant}}<p class="muted">Портал: <strong>{{.PortalTenant.Name}}</strong></p>{{else}}<p class="muted">Вход в систему поддержки</p>{{end}}
+  {{if .LDAPEnabled}}<p class="muted">Доступен вход через LDAP / Active Directory / FreeIPA</p>{{end}}
   {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
   <form method="post" action="/login" class="stack">
-    <label>Email<input type="email" name="email" value="{{.Email}}" required autofocus></label>
-    <label>Пароль<input type="password" name="password" required></label>
+    <label>Email или логин LDAP<input type="text" name="email" value="{{.Email}}" required autofocus autocomplete="username"></label>
+    <label>Пароль<input type="password" name="password" required autocomplete="current-password"></label>
     <button class="btn btn-primary" type="submit">Войти</button>
   </form>
   <p class="muted">Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>

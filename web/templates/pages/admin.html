@@ -3,10 +3,11 @@
 <section class="page-head">
   <div>
     <h1>Админка</h1>
-    <p class="muted">Организации, пользователи, менеджеры, очереди и шаблоны</p>
+    <p class="muted">Организации, домены портала, LDAP, почта, пользователи, очереди и шаблоны</p>
   </div>
 </section>
 {{if .Flash}}<div class="alert alert-ok">{{.Flash}}</div>{{end}}
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
 
 <section class="card">
   <h2>Организации (тенанты)</h2>
@@ -20,19 +21,20 @@
     <label>Slug<input type="text" name="slug" required placeholder="romashka" pattern="[a-z0-9][a-z0-9-]{1,62}"></label>
     <button class="btn btn-primary" type="submit">Создать организацию</button>
   </form>
-  <p class="muted">При регистрации заявитель указывает slug организации.</p>
+  <p class="muted">Доменные имена портала настраиваются ниже для текущей организации. При входе по домену тенант определяется автоматически.</p>
 </section>
 
 <section class="card">
   <h2>Пользователи текущей организации</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Менеджер</th><th>Telegram</th><th>Jabber</th><th></th></tr></thead>
+      <thead><tr><th>Имя</th><th>Email</th><th>Источник</th><th>Роль</th><th>Менеджер</th><th>Telegram</th><th>Jabber</th><th></th></tr></thead>
       <tbody>
       {{range .Users}}
         <tr>
           <td>{{.FullName}}</td>
           <td>{{.Email}}</td>
+          <td>{{if eq .Source "ldap"}}LDAP{{else}}локальный{{end}}</td>
           <td>{{roleLabel .Role}}</td>
           <td>{{if .ManagerID}}{{index $.ManagerNames .ManagerID}}{{else}}—{{end}}</td>
           <td>{{if .TelegramID}}привязан{{else}}—{{end}}</td>
@@ -86,6 +88,108 @@
     <label>Название<input type="text" name="name" required></label>
     <label>Описание<input type="text" name="description"></label>
     <button class="btn btn-primary" type="submit">Добавить очередь</button>
+  </form>
+</section>
+
+
+<section class="card" id="domains">
+  <h2>Домены портала</h2>
+  <p class="muted">Например <code>helpme.example.com</code> — этот хост открывает портал текущей организации. У каждого тенанта свои домены.</p>
+  <ul class="list">
+    {{range .Domains}}
+    <li>
+      <strong>{{.Host}}</strong>{{if .IsPrimary}} — основной{{end}}
+      <form method="post" action="/admin/domains/{{.ID}}/delete" class="inline-form" style="display:inline;margin-left:0.5rem">
+        <button class="btn btn-secondary btn-sm" type="submit">Удалить</button>
+      </form>
+    </li>
+    {{else}}
+    <li class="muted">Домены ещё не заданы — используется fallback на организацию default.</li>
+    {{end}}
+  </ul>
+  <form method="post" action="/admin/domains" class="stack narrow-form">
+    <label>Хост<input type="text" name="host" required placeholder="helpme.example.com"></label>
+    <label class="check"><input type="checkbox" name="is_primary" value="1"> Основной домен</label>
+    <button class="btn btn-primary" type="submit">Добавить домен</button>
+  </form>
+</section>
+
+<section class="card" id="ldap">
+  <h2>LDAP / Active Directory / FreeIPA</h2>
+  <p class="muted">Отдельное подключение для этой организации. При входе сначала проверяется локальный пароль, затем LDAP bind с upsert пользователя.</p>
+  <form method="post" action="/admin/ldap" class="stack">
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{if .LDAP.Enabled}}checked{{end}}> Включить LDAP</label>
+    <label>Провайдер
+      <select name="provider">
+        <option value="ad" {{if eq .LDAP.Provider "ad"}}selected{{end}}>Active Directory</option>
+        <option value="freeipa" {{if eq .LDAP.Provider "freeipa"}}selected{{end}}>FreeIPA</option>
+      </select>
+    </label>
+    <label>URL сервера<input type="text" name="server_url" value="{{.LDAP.ServerURL}}" placeholder="ldaps://dc.example.com:636"></label>
+    <label>Bind DN<input type="text" name="bind_dn" value="{{.LDAP.BindDN}}"></label>
+    <label>Bind пароль<input type="password" name="bind_password" placeholder="оставьте пустым, чтобы не менять"></label>
+    <label>User base DN<input type="text" name="user_base_dn" value="{{.LDAP.UserBaseDN}}"></label>
+    <label>Фильтр пользователей<input type="text" name="user_filter" value="{{.LDAP.UserFilter}}"></label>
+    <div class="grid-2">
+      <label>Email attr<input type="text" name="email_attr" value="{{.LDAP.EmailAttr}}"></label>
+      <label>Name attr<input type="text" name="name_attr" value="{{.LDAP.NameAttr}}"></label>
+      <label>Username attr<input type="text" name="username_attr" value="{{.LDAP.UsernameAttr}}"></label>
+      <label>Group attr<input type="text" name="group_attr" value="{{.LDAP.GroupAttr}}"></label>
+    </div>
+    <label>DN группы специалистов<input type="text" name="agent_group_dn" value="{{.LDAP.AgentGroupDN}}"></label>
+    <label>DN группы менеджеров<input type="text" name="manager_group_dn" value="{{.LDAP.ManagerGroupDN}}"></label>
+    <label>DN группы администраторов<input type="text" name="admin_group_dn" value="{{.LDAP.AdminGroupDN}}"></label>
+    <label class="check"><input type="checkbox" name="use_tls" value="1" {{if .LDAP.UseTLS}}checked{{end}}> TLS / LDAPS</label>
+    <label class="check"><input type="checkbox" name="start_tls" value="1" {{if .LDAP.StartTLS}}checked{{end}}> StartTLS</label>
+    <label class="check"><input type="checkbox" name="insecure_tls" value="1" {{if .LDAP.InsecureTLS}}checked{{end}}> Не проверять сертификат (только для теста)</label>
+    <div class="inline-form">
+      <button class="btn btn-primary" type="submit">Сохранить LDAP</button>
+    </div>
+  </form>
+  <form method="post" action="/admin/ldap/test" style="margin-top:0.75rem">
+    <button class="btn btn-secondary" type="submit">Проверить подключение</button>
+  </form>
+</section>
+
+<section class="card" id="mail">
+  <h2>Электронная почта (уведомления)</h2>
+  <p class="muted">Свои SMTP-настройки на тенант. Можно задать ящик по умолчанию (без очереди) и отдельные ящики для очередей.</p>
+  <ul class="list">
+    {{range .Mailboxes}}
+    <li>
+      <strong>{{.Name}}</strong>
+      — {{if .QueueID}}очередь «{{.QueueName}}»{{else}}по умолчанию для организации{{end}}
+      — {{.FromEmail}} / {{.SMTPHost}}:{{.SMTPPort}}
+      {{if not .IsActive}} (выкл.){{end}}
+      <form method="post" action="/admin/mailboxes/{{.ID}}/test" class="inline-form" style="display:inline;margin-left:0.4rem">
+        <button class="btn btn-secondary btn-sm" type="submit">Тест</button>
+      </form>
+      <form method="post" action="/admin/mailboxes/{{.ID}}/delete" class="inline-form" style="display:inline">
+        <button class="btn btn-secondary btn-sm" type="submit">Удалить</button>
+      </form>
+    </li>
+    {{else}}
+    <li class="muted">Почтовые ящики не настроены — email-уведомления отключены.</li>
+    {{end}}
+  </ul>
+  <form method="post" action="/admin/mailboxes" class="stack narrow-form">
+    <label>Название<input type="text" name="name" required placeholder="Уведомления IT"></label>
+    <label>Очередь (пусто = по умолчанию для тенанта)
+      <select name="queue_id">
+        <option value="">— по умолчанию —</option>
+        {{range .Queues}}
+        <option value="{{.ID}}">{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>From email<input type="email" name="from_email" required></label>
+    <label>SMTP host<input type="text" name="smtp_host" required placeholder="smtp.example.com"></label>
+    <label>SMTP port<input type="number" name="smtp_port" value="587" min="1" max="65535"></label>
+    <label>SMTP username<input type="text" name="smtp_username"></label>
+    <label>SMTP password<input type="password" name="smtp_password"></label>
+    <label class="check"><input type="checkbox" name="smtp_use_tls" value="1" checked> TLS</label>
+    <label class="check"><input type="checkbox" name="is_active" value="1" checked> Активен</label>
+    <button class="btn btn-primary" type="submit">Добавить ящик</button>
   </form>
 </section>
 

@@ -4,6 +4,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -15,6 +17,7 @@ import (
 	"github.com/rkislov/pomogayka/internal/db"
 	"github.com/rkislov/pomogayka/internal/handlers"
 	appmw "github.com/rkislov/pomogayka/internal/middleware"
+	"github.com/rkislov/pomogayka/internal/services"
 )
 
 var version = "dev"
@@ -26,15 +29,30 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	migrationPath := "migrations/sqlite/001_init.sql"
+	migDir := "migrations/sqlite"
 	if dialect == db.DialectPostgres {
-		migrationPath = "migrations/postgres/001_init.sql"
+		migDir = "migrations/postgres"
 	}
-	migration, err := pomogayka.Content.ReadFile(migrationPath)
+	entries, err := fs.ReadDir(pomogayka.Content, migDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	db.MigrationSQL = string(migration)
+	var names []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	var files []string
+	for _, name := range names {
+		b, err := pomogayka.Content.ReadFile(migDir + "/" + name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		files = append(files, string(b))
+	}
+	db.MigrationFiles = files
 
 	database, err := db.Open(cfg)
 	if err != nil {
@@ -57,6 +75,7 @@ func main() {
 
 	app := &handlers.App{Store: store, Sessions: sessions, Render: renderer}
 	notifiers := &bot.MultiNotifier{}
+	notifiers.Add(&services.EmailNotifier{Store: store})
 
 	if cfg.TelegramBotEnabled {
 		if cfg.TelegramBotToken == "" {
@@ -88,13 +107,12 @@ func main() {
 		log.Printf("Jabber bot disabled (set JABBER_JID and JABBER_PASSWORD to enable)")
 	}
 
-	if len(notifiers.Notifiers) > 0 {
-		app.Notifier = notifiers
-	}
+	app.Notifier = notifiers
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID, chimw.RealIP, chimw.Logger, chimw.Recoverer)
 	r.Use(sessions.LoadAndSave)
+	r.Use(appmw.ResolveTenant(store))
 	r.Use(appmw.LoadUser(sessions, store))
 
 	staticFS, err := fs.Sub(pomogayka.Content, "web/static")
@@ -140,6 +158,13 @@ func main() {
 			admin.Post("/admin/queues", app.AdminQueueCreate)
 			admin.Post("/admin/templates/{id}", app.AdminTemplateUpdate)
 			admin.Post("/admin/tenants", app.AdminTenantCreate)
+			admin.Post("/admin/domains", app.AdminDomainAdd)
+			admin.Post("/admin/domains/{id}/delete", app.AdminDomainDelete)
+			admin.Post("/admin/ldap", app.AdminLDAPSave)
+			admin.Post("/admin/ldap/test", app.AdminLDAPTest)
+			admin.Post("/admin/mailboxes", app.AdminMailboxSave)
+			admin.Post("/admin/mailboxes/{id}/delete", app.AdminMailboxDelete)
+			admin.Post("/admin/mailboxes/{id}/test", app.AdminMailboxTest)
 		})
 	})
 

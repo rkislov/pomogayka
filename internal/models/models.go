@@ -36,6 +36,13 @@ func (r Role) IsAdmin() bool {
 	return r == RoleAdmin
 }
 
+type UserSource string
+
+const (
+	UserSourceManual UserSource = "manual"
+	UserSourceLDAP   UserSource = "ldap"
+)
+
 type TicketStatus string
 
 const (
@@ -93,6 +100,61 @@ type Tenant struct {
 	Slug      string
 	IsActive  bool
 	CreatedAt time.Time
+	Domains   []TenantDomain
+}
+
+type TenantDomain struct {
+	ID        string
+	TenantID  string
+	Host      string
+	IsPrimary bool
+	CreatedAt time.Time
+}
+
+type LDAPSettings struct {
+	TenantID       string
+	Enabled        bool
+	Provider       string // ad | freeipa
+	ServerURL      string
+	BindDN         string
+	BindPassword   string
+	UserBaseDN     string
+	UserFilter     string
+	EmailAttr      string
+	NameAttr       string
+	UsernameAttr   string
+	GroupAttr      string
+	AgentGroupDN   string
+	ManagerGroupDN string
+	AdminGroupDN   string
+	UseTLS         bool
+	StartTLS       bool
+	InsecureTLS    bool
+	UpdatedAt      time.Time
+}
+
+func (s LDAPSettings) IsConfigured() bool {
+	return s.Enabled && s.ServerURL != "" && s.UserBaseDN != ""
+}
+
+type EmailMailbox struct {
+	ID           string
+	TenantID     string
+	QueueID      string
+	Name         string
+	FromEmail    string
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPUseTLS   bool
+	IsActive     bool
+	CreatedAt    time.Time
+	QueueName    string
+}
+
+func (m EmailMailbox) IsReady() bool {
+	return m.IsActive && m.SMTPHost != "" && m.FromEmail != ""
 }
 
 type User struct {
@@ -103,6 +165,8 @@ type User struct {
 	PasswordHash string
 	Role         Role
 	ManagerID    string
+	Source       UserSource
+	ExternalID   string
 	IsActive     bool
 	TelegramID   *int64
 	JabberJID    string

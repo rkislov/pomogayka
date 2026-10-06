@@ -24,7 +24,7 @@ func parseTime(s string) time.Time {
 	return t
 }
 
-const userSelect = `SELECT id, tenant_id, email, full_name, password_hash, role, COALESCE(manager_id, ''), is_active, telegram_id, COALESCE(jabber_jid, ''), created_at FROM users`
+const userSelect = `SELECT id, tenant_id, email, full_name, password_hash, role, COALESCE(manager_id, ''), COALESCE(source, 'manual'), COALESCE(external_id, ''), is_active, telegram_id, COALESCE(jabber_jid, ''), created_at FROM users`
 
 func (s *Store) GetUserByEmail(email string) (*models.User, error) {
 	row := s.DB.QueryRow(userSelect+` WHERE email = ?`, strings.ToLower(email))
@@ -51,9 +51,12 @@ func scanUser(row *sql.Row) (*models.User, error) {
 	var active int
 	var created string
 	var telegramID sql.NullInt64
-	if err := row.Scan(&u.ID, &u.TenantID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &u.ManagerID, &active, &telegramID, &u.JabberJID, &created); err != nil {
+	var source, external string
+	if err := row.Scan(&u.ID, &u.TenantID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &u.ManagerID, &source, &external, &active, &telegramID, &u.JabberJID, &created); err != nil {
 		return nil, err
 	}
+	u.Source = models.UserSource(source)
+	u.ExternalID = external
 	u.IsActive = active == 1
 	u.CreatedAt = parseTime(created)
 	if telegramID.Valid {
@@ -99,12 +102,13 @@ func (s *Store) CreateUser(tenantID, email, fullName, passwordHash string, role 
 		FullName:     fullName,
 		PasswordHash: passwordHash,
 		Role:         role,
+		Source:       models.UserSourceManual,
 		IsActive:     true,
 		CreatedAt:    time.Now().UTC(),
 	}
 	_, err := s.DB.Exec(
-		`INSERT INTO users (id, tenant_id, email, full_name, password_hash, role, manager_id, is_active, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, NULL, 1, ?)`,
+		`INSERT INTO users (id, tenant_id, email, full_name, password_hash, role, manager_id, source, external_id, is_active, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, NULL, 'manual', '', 1, ?)`,
 		u.ID, u.TenantID, u.Email, u.FullName, u.PasswordHash, u.Role, u.CreatedAt.Format(time.RFC3339),
 	)
 	return u, err
@@ -122,9 +126,12 @@ func (s *Store) ListUsers(tenantID string) ([]models.User, error) {
 		var active int
 		var created string
 		var telegramID sql.NullInt64
-		if err := rows.Scan(&u.ID, &u.TenantID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &u.ManagerID, &active, &telegramID, &u.JabberJID, &created); err != nil {
+		var source, external string
+		if err := rows.Scan(&u.ID, &u.TenantID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &u.ManagerID, &source, &external, &active, &telegramID, &u.JabberJID, &created); err != nil {
 			return nil, err
 		}
+		u.Source = models.UserSource(source)
+		u.ExternalID = external
 		u.IsActive = active == 1
 		u.CreatedAt = parseTime(created)
 		if telegramID.Valid {
@@ -196,9 +203,12 @@ func scanUserRow(row rowScanner) (*models.User, error) {
 	var active int
 	var created string
 	var telegramID sql.NullInt64
-	if err := row.Scan(&u.ID, &u.TenantID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &u.ManagerID, &active, &telegramID, &u.JabberJID, &created); err != nil {
+	var source, external string
+	if err := row.Scan(&u.ID, &u.TenantID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &u.ManagerID, &source, &external, &active, &telegramID, &u.JabberJID, &created); err != nil {
 		return nil, err
 	}
+	u.Source = models.UserSource(source)
+	u.ExternalID = external
 	u.IsActive = active == 1
 	u.CreatedAt = parseTime(created)
 	if telegramID.Valid {

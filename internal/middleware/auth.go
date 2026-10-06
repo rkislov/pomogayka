@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/alexedwards/scs/v2"
 
@@ -23,6 +24,29 @@ func UserFromContext(ctx context.Context) *models.User {
 func TenantFromContext(ctx context.Context) *models.Tenant {
 	t, _ := ctx.Value(TenantKey).(*models.Tenant)
 	return t
+}
+
+// ResolveTenant maps Host to a tenant portal domain.
+// If the host is not registered, falls back to the default tenant (local/dev).
+func ResolveTenant(store *db.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			host := r.Host
+			if xf := r.Header.Get("X-Forwarded-Host"); xf != "" {
+				host = strings.TrimSpace(strings.Split(xf, ",")[0])
+			}
+			var tenant *models.Tenant
+			if t, err := store.GetTenantByHost(host); err == nil && t.IsActive {
+				tenant = t
+			} else if t, err := store.GetTenantBySlug("default"); err == nil && t.IsActive {
+				tenant = t
+			}
+			if tenant != nil {
+				r = r.WithContext(context.WithValue(r.Context(), TenantKey, tenant))
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func LoadUser(sm *scs.SessionManager, store *db.Store) func(http.Handler) http.Handler {

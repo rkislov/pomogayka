@@ -9,15 +9,18 @@ CREATE TABLE IF NOT EXISTS tenants (
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES tenants(id),
-    email TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
     full_name TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL CHECK (role IN ('client', 'agent', 'manager', 'admin')),
     manager_id TEXT REFERENCES users(id),
+    source TEXT NOT NULL DEFAULT 'manual',
+    external_id TEXT NOT NULL DEFAULT '',
     is_active INTEGER NOT NULL DEFAULT 1,
     telegram_id BIGINT,
     jabber_jid TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    UNIQUE(tenant_id, email)
 );
 
 CREATE TABLE IF NOT EXISTS queues (
@@ -52,6 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets(assignee_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_created ON tickets(created_at);
 CREATE INDEX IF NOT EXISTS idx_tickets_tenant ON tickets(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_users_external ON users(tenant_id, external_id);
 CREATE INDEX IF NOT EXISTS idx_users_manager ON users(manager_id);
 
 CREATE TABLE IF NOT EXISTS comments (

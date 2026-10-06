@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/alexedwards/scs/v2"
@@ -12,6 +13,7 @@ import (
 	"github.com/rkislov/pomogayka/internal/db"
 	"github.com/rkislov/pomogayka/internal/middleware"
 	"github.com/rkislov/pomogayka/internal/models"
+	"github.com/rkislov/pomogayka/internal/services"
 )
 
 type TicketNotifier interface {
@@ -36,16 +38,60 @@ func (a *App) Home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) LoginForm(w http.ResponseWriter, r *http.Request) {
-	a.Render.Render(w, r, "pages/login.html", pageData{"Title": "Вход", "Error": ""})
+	tenant := middleware.TenantFromContext(r.Context())
+	ldapEnabled := false
+	if tenant != nil {
+		if cfg, err := a.Store.GetLDAPSettings(tenant.ID); err == nil {
+			ldapEnabled = cfg.IsConfigured()
+		}
+	}
+	a.Render.Render(w, r, "pages/login.html", pageData{
+		"Title": "Вход", "Error": "", "LDAPEnabled": ldapEnabled, "PortalTenant": tenant,
+	})
 }
 
 func (a *App) Login(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	email := strings.TrimSpace(r.FormValue("email"))
 	password := r.FormValue("password")
-	u, err := a.Store.GetUserByEmail(email)
-	if err != nil || !auth.CheckPassword(u.PasswordHash, password) || !u.IsActive {
-		a.Render.Render(w, r, "pages/login.html", pageData{"Title": "Вход", "Error": "Неверный email или пароль", "Email": email})
+	tenant := middleware.TenantFromContext(r.Context())
+	ldapEnabled := false
+	if tenant != nil {
+		if cfg, err := a.Store.GetLDAPSettings(tenant.ID); err == nil {
+			ldapEnabled = cfg.IsConfigured()
+		}
+	}
+	fail := func(msg string) {
+		a.Render.Render(w, r, "pages/login.html", pageData{
+			"Title": "Вход", "Error": msg, "Email": email, "LDAPEnabled": ldapEnabled, "PortalTenant": tenant,
+		})
+	}
+	if tenant == nil {
+		fail("Портал организации не определён (проверьте доменное имя)")
+		return
+	}
+
+	var u *models.User
+	if local, err := a.Store.GetUserByEmailInTenant(tenant.ID, email); err == nil && local.IsActive {
+		if local.Source != models.UserSourceLDAP && auth.CheckPassword(local.PasswordHash, password) {
+			u = local
+		}
+	}
+	if u == nil {
+		cfg, err := a.Store.GetLDAPSettings(tenant.ID)
+		if err == nil && cfg.IsConfigured() {
+			lu, err := services.AuthenticateLDAP(cfg, email, password)
+			if err == nil && lu.Email != "" {
+				u, err = a.Store.UpsertLDAPUser(tenant.ID, lu.Email, lu.FullName, lu.ExternalID, lu.Role)
+				if err != nil {
+					fail("Не удалось синхронизировать пользователя LDAP")
+					return
+				}
+			}
+		}
+	}
+	if u == nil || !u.IsActive {
+		fail("Неверный email или пароль")
 		return
 	}
 	if err := a.Sessions.RenewToken(r.Context()); err != nil {
@@ -57,7 +103,19 @@ func (a *App) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) RegisterForm(w http.ResponseWriter, r *http.Request) {
-	a.Render.Render(w, r, "pages/register.html", pageData{"Title": "Регистрация", "Error": "", "TenantSlug": "default"})
+	portal := middleware.TenantFromContext(r.Context())
+	slug := "default"
+	locked := false
+	if portal != nil {
+		slug = portal.Slug
+		// If host maps to a real portal domain (not just fallback), lock slug.
+		if _, err := a.Store.GetTenantByHost(r.Host); err == nil {
+			locked = true
+		}
+	}
+	a.Render.Render(w, r, "pages/register.html", pageData{
+		"Title": "Регистрация", "Error": "", "TenantSlug": slug, "TenantLocked": locked, "PortalTenant": portal,
+	})
 }
 
 func (a *App) Register(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +124,12 @@ func (a *App) Register(w http.ResponseWriter, r *http.Request) {
 	fullName := strings.TrimSpace(r.FormValue("full_name"))
 	password := r.FormValue("password")
 	slug := strings.ToLower(strings.TrimSpace(r.FormValue("tenant_slug")))
+	portal := middleware.TenantFromContext(r.Context())
+	locked := false
+	if _, err := a.Store.GetTenantByHost(r.Host); err == nil && portal != nil {
+		slug = portal.Slug
+		locked = true
+	}
 	if slug == "" {
 		slug = "default"
 	}
@@ -73,14 +137,14 @@ func (a *App) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil || !tenant.IsActive {
 		a.Render.Render(w, r, "pages/register.html", pageData{
 			"Title": "Регистрация", "Error": "Организация не найдена. Укажите корректный slug.",
-			"Email": email, "FullName": fullName, "TenantSlug": slug,
+			"Email": email, "FullName": fullName, "TenantSlug": slug, "TenantLocked": locked, "PortalTenant": portal,
 		})
 		return
 	}
 	if len(email) < 3 || len(fullName) < 2 || len(password) < 8 {
 		a.Render.Render(w, r, "pages/register.html", pageData{
 			"Title": "Регистрация", "Error": "Проверьте поля: имя, email и пароль от 8 символов",
-			"Email": email, "FullName": fullName, "TenantSlug": slug,
+			"Email": email, "FullName": fullName, "TenantSlug": slug, "TenantLocked": locked, "PortalTenant": portal,
 		})
 		return
 	}
@@ -92,8 +156,8 @@ func (a *App) Register(w http.ResponseWriter, r *http.Request) {
 	u, err := a.Store.CreateUser(tenant.ID, email, fullName, hash, models.RoleClient)
 	if err != nil {
 		a.Render.Render(w, r, "pages/register.html", pageData{
-			"Title": "Регистрация", "Error": "Не удалось создать пользователя (возможно, email уже занят)",
-			"Email": email, "FullName": fullName, "TenantSlug": slug,
+			"Title": "Регистрация", "Error": "Не удалось создать пользователя (возможно, email уже занят в этой организации)",
+			"Email": email, "FullName": fullName, "TenantSlug": slug, "TenantLocked": locked, "PortalTenant": portal,
 		})
 		return
 	}
@@ -340,6 +404,9 @@ func (a *App) Admin(w http.ResponseWriter, r *http.Request) {
 	tenants, _ := a.Store.ListTenants()
 	managers, _ := a.Store.ListManagers(user.TenantID)
 	agents, _ := a.Store.ListAgents(user.TenantID)
+	domains, _ := a.Store.ListTenantDomains(user.TenantID)
+	ldap, _ := a.Store.GetLDAPSettings(user.TenantID)
+	mailboxes, _ := a.Store.ListMailboxes(user.TenantID)
 	managerNames := map[string]string{}
 	for _, m := range managers {
 		managerNames[m.ID] = m.FullName
@@ -347,7 +414,9 @@ func (a *App) Admin(w http.ResponseWriter, r *http.Request) {
 	a.Render.Render(w, r, "pages/admin.html", pageData{
 		"Title": "Админка", "Users": users, "Queues": queues, "Templates": templates,
 		"Tenants": tenants, "Managers": managers, "Agents": agents, "ManagerNames": managerNames,
+		"Domains": domains, "LDAP": ldap, "Mailboxes": mailboxes,
 		"Flash": a.Sessions.PopString(r.Context(), "flash"),
+		"Error": a.Sessions.PopString(r.Context(), "flash_error"),
 	})
 }
 
@@ -447,3 +516,152 @@ func (a *App) AdminTenantCreate(w http.ResponseWriter, r *http.Request) {
 	a.Sessions.Put(r.Context(), "flash", "Организация создана")
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
+
+func (a *App) AdminDomainAdd(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	_ = r.ParseForm()
+	host := strings.TrimSpace(r.FormValue("host"))
+	primary := r.FormValue("is_primary") == "1"
+	if host == "" {
+		a.Sessions.Put(r.Context(), "flash_error", "Укажите доменное имя портала")
+		http.Redirect(w, r, "/admin#domains", http.StatusSeeOther)
+		return
+	}
+	if _, err := a.Store.AddTenantDomain(user.TenantID, host, primary); err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", "Не удалось добавить домен (возможно, уже занят): "+err.Error())
+		http.Redirect(w, r, "/admin#domains", http.StatusSeeOther)
+		return
+	}
+	a.Sessions.Put(r.Context(), "flash", "Домен портала добавлен")
+	http.Redirect(w, r, "/admin#domains", http.StatusSeeOther)
+}
+
+func (a *App) AdminDomainDelete(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	if err := a.Store.DeleteTenantDomain(user.TenantID, id); err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", err.Error())
+	} else {
+		a.Sessions.Put(r.Context(), "flash", "Домен удалён")
+	}
+	http.Redirect(w, r, "/admin#domains", http.StatusSeeOther)
+}
+
+func (a *App) AdminLDAPSave(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	_ = r.ParseForm()
+	existing, _ := a.Store.GetLDAPSettings(user.TenantID)
+	bindPassword := r.FormValue("bind_password")
+	if bindPassword == "" && existing != nil {
+		bindPassword = existing.BindPassword
+	}
+	cfg := models.LDAPSettings{
+		TenantID:       user.TenantID,
+		Enabled:        r.FormValue("enabled") == "1",
+		Provider:       r.FormValue("provider"),
+		ServerURL:      strings.TrimSpace(r.FormValue("server_url")),
+		BindDN:         strings.TrimSpace(r.FormValue("bind_dn")),
+		BindPassword:   bindPassword,
+		UserBaseDN:     strings.TrimSpace(r.FormValue("user_base_dn")),
+		UserFilter:     strings.TrimSpace(r.FormValue("user_filter")),
+		EmailAttr:      strings.TrimSpace(r.FormValue("email_attr")),
+		NameAttr:       strings.TrimSpace(r.FormValue("name_attr")),
+		UsernameAttr:   strings.TrimSpace(r.FormValue("username_attr")),
+		GroupAttr:      strings.TrimSpace(r.FormValue("group_attr")),
+		AgentGroupDN:   strings.TrimSpace(r.FormValue("agent_group_dn")),
+		ManagerGroupDN: strings.TrimSpace(r.FormValue("manager_group_dn")),
+		AdminGroupDN:   strings.TrimSpace(r.FormValue("admin_group_dn")),
+		UseTLS:         r.FormValue("use_tls") == "1",
+		StartTLS:       r.FormValue("start_tls") == "1",
+		InsecureTLS:    r.FormValue("insecure_tls") == "1",
+	}
+	if err := a.Store.SaveLDAPSettings(cfg); err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", "LDAP: "+err.Error())
+	} else {
+		a.Sessions.Put(r.Context(), "flash", "Настройки LDAP сохранены")
+	}
+	http.Redirect(w, r, "/admin#ldap", http.StatusSeeOther)
+}
+
+func (a *App) AdminLDAPTest(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	cfg, err := a.Store.GetLDAPSettings(user.TenantID)
+	if err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", err.Error())
+		http.Redirect(w, r, "/admin#ldap", http.StatusSeeOther)
+		return
+	}
+	if err := services.TestLDAP(cfg); err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", "LDAP тест: "+err.Error())
+	} else {
+		a.Sessions.Put(r.Context(), "flash", "LDAP: подключение успешно")
+	}
+	http.Redirect(w, r, "/admin#ldap", http.StatusSeeOther)
+}
+
+func (a *App) AdminMailboxSave(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	_ = r.ParseForm()
+	port, _ := strconv.Atoi(r.FormValue("smtp_port"))
+	m := models.EmailMailbox{
+		ID:           strings.TrimSpace(r.FormValue("id")),
+		TenantID:     user.TenantID,
+		QueueID:      strings.TrimSpace(r.FormValue("queue_id")),
+		Name:         strings.TrimSpace(r.FormValue("name")),
+		FromEmail:    strings.TrimSpace(r.FormValue("from_email")),
+		SMTPHost:     strings.TrimSpace(r.FormValue("smtp_host")),
+		SMTPPort:     port,
+		SMTPUsername: strings.TrimSpace(r.FormValue("smtp_username")),
+		SMTPPassword: r.FormValue("smtp_password"),
+		SMTPUseTLS:   r.FormValue("smtp_use_tls") == "1",
+		IsActive:     r.FormValue("is_active") == "1",
+	}
+	if m.Name == "" {
+		a.Sessions.Put(r.Context(), "flash_error", "Укажите название ящика")
+		http.Redirect(w, r, "/admin#mail", http.StatusSeeOther)
+		return
+	}
+	if err := a.Store.UpsertMailbox(m); err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", "Почта: "+err.Error())
+	} else {
+		a.Sessions.Put(r.Context(), "flash", "Почтовый ящик сохранён")
+	}
+	http.Redirect(w, r, "/admin#mail", http.StatusSeeOther)
+}
+
+func (a *App) AdminMailboxDelete(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	if err := a.Store.DeleteMailbox(user.TenantID, id); err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", err.Error())
+	} else {
+		a.Sessions.Put(r.Context(), "flash", "Почтовый ящик удалён")
+	}
+	http.Redirect(w, r, "/admin#mail", http.StatusSeeOther)
+}
+
+func (a *App) AdminMailboxTest(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	list, _ := a.Store.ListMailboxes(user.TenantID)
+	var mb *models.EmailMailbox
+	for i := range list {
+		if list[i].ID == id {
+			mb = &list[i]
+			break
+		}
+	}
+	if mb == nil {
+		a.Sessions.Put(r.Context(), "flash_error", "Ящик не найден")
+		http.Redirect(w, r, "/admin#mail", http.StatusSeeOther)
+		return
+	}
+	to := user.Email
+	if err := services.SendSMTP(mb, []string{to}, "Помогайка: тест SMTP", "Тестовое письмо от портала "+user.TenantID); err != nil {
+		a.Sessions.Put(r.Context(), "flash_error", "SMTP тест: "+err.Error())
+	} else {
+		a.Sessions.Put(r.Context(), "flash", "Тестовое письмо отправлено на "+to)
+	}
+	http.Redirect(w, r, "/admin#mail", http.StatusSeeOther)
+}
+

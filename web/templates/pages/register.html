@@ -3,16 +3,21 @@
 
 <section class="auth-card">
   <h1>Регистрация</h1>
-  <p class="muted">Создайте аккаунт заявителя</p>
+  {{if .PortalTenant}}<p class="muted">Организация: <strong>{{.PortalTenant.Name}}</strong></p>{{else}}<p class="muted">Создание аккаунта заявителя</p>{{end}}
   {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
   <form method="post" action="/register" class="stack">
-    <label>Организация (slug)<input type="text" name="tenant_slug" value="{{.TenantSlug}}" required placeholder="default"></label>
     <label>ФИО<input type="text" name="full_name" value="{{.FullName}}" required></label>
     <label>Email<input type="email" name="email" value="{{.Email}}" required></label>
-    <label>Пароль<input type="password" name="password" minlength="8" required></label>
-    <button class="btn btn-primary" type="submit">Создать аккаунт</button>
+    <label>Пароль<input type="password" name="password" required minlength="8"></label>
+    {{if .TenantLocked}}
+    <input type="hidden" name="tenant_slug" value="{{.TenantSlug}}">
+    <p class="muted">Организация определяется доменом портала ({{.TenantSlug}})</p>
+    {{else}}
+    <label>Slug организации<input type="text" name="tenant_slug" value="{{.TenantSlug}}" required pattern="[a-z0-9][a-z0-9-]{1,62}"></label>
+    {{end}}
+    <button class="btn btn-primary" type="submit">Зарегистрироваться</button>
   </form>
-  <p class="muted"><a href="/login">Уже есть аккаунт</a></p>
+  <p class="muted">Уже есть аккаунт? <a href="/login">Войти</a></p>
 </section>
 
 {{template "partials/footer.html" .}}
