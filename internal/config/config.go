@@ -9,30 +9,35 @@ import (
 )
 
 type Config struct {
-	AppName        string
-	Addr           string
-	DatabaseURL    string
-	SessionSecret  string
-	AdminEmail     string
-	AdminPassword  string
-	AdminFullName  string
-	SecureCookies  bool
-	SessionHours   int
+	AppName           string
+	Addr              string
+	DatabaseURL       string
+	SessionSecret     string
+	AdminEmail        string
+	AdminPassword     string
+	AdminFullName     string
+	SecureCookies     bool
+	SessionHours      int
+	TelegramBotToken  string
+	TelegramBotEnabled bool
 }
 
 func Load() Config {
 	_ = godotenv.Load()
 
+	token := env("TELEGRAM_BOT_TOKEN", "")
 	return Config{
-		AppName:       env("APP_NAME", "Помогайка"),
-		Addr:          env("ADDR", ":8080"),
-		DatabaseURL:   env("DATABASE_URL", "file:data/pomogayka.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)"),
-		SessionSecret: env("SESSION_SECRET", "change-me-in-production"),
-		AdminEmail:    env("ADMIN_EMAIL", "admin@example.com"),
-		AdminPassword: env("ADMIN_PASSWORD", "admin12345"),
-		AdminFullName: env("ADMIN_FULL_NAME", "Администратор"),
-		SecureCookies: envBool("SECURE_COOKIES", false),
-		SessionHours:  envInt("SESSION_HOURS", 168),
+		AppName:            env("APP_NAME", "Помогайка"),
+		Addr:               env("ADDR", ":8080"),
+		DatabaseURL:        env("DATABASE_URL", "file:data/pomogayka.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)"),
+		SessionSecret:      env("SESSION_SECRET", "change-me-in-production"),
+		AdminEmail:         env("ADMIN_EMAIL", "admin@example.com"),
+		AdminPassword:      env("ADMIN_PASSWORD", "admin12345"),
+		AdminFullName:      env("ADMIN_FULL_NAME", "Администратор"),
+		SecureCookies:      envBool("SECURE_COOKIES", false),
+		SessionHours:       envInt("SESSION_HOURS", 168),
+		TelegramBotToken:   token,
+		TelegramBotEnabled: envBool("TELEGRAM_BOT_ENABLED", token != ""),
 	}
 }
 

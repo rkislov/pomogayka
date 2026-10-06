@@ -25,12 +25,17 @@ func parseTime(s string) time.Time {
 }
 
 func (s *Store) GetUserByEmail(email string) (*models.User, error) {
-	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, created_at FROM users WHERE email = ?`, strings.ToLower(email))
+	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users WHERE email = ?`, strings.ToLower(email))
 	return scanUser(row)
 }
 
 func (s *Store) GetUserByID(id string) (*models.User, error) {
-	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, created_at FROM users WHERE id = ?`, id)
+	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users WHERE id = ?`, id)
+	return scanUser(row)
+}
+
+func (s *Store) GetUserByTelegramID(telegramID int64) (*models.User, error) {
+	row := s.DB.QueryRow(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users WHERE telegram_id = ?`, telegramID)
 	return scanUser(row)
 }
 
@@ -38,12 +43,45 @@ func scanUser(row *sql.Row) (*models.User, error) {
 	var u models.User
 	var active int
 	var created string
-	if err := row.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &created); err != nil {
+	var telegramID sql.NullInt64
+	if err := row.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &telegramID, &created); err != nil {
 		return nil, err
 	}
 	u.IsActive = active == 1
 	u.CreatedAt = parseTime(created)
+	if telegramID.Valid {
+		v := telegramID.Int64
+		u.TelegramID = &v
+	}
 	return &u, nil
+}
+
+func (s *Store) LinkTelegram(userID string, telegramID int64) error {
+	_, err := s.DB.Exec(`UPDATE users SET telegram_id = NULL WHERE telegram_id = ?`, telegramID)
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec(`UPDATE users SET telegram_id = ? WHERE id = ?`, telegramID, userID)
+	return err
+}
+
+func (s *Store) UnlinkTelegram(userID string) error {
+	_, err := s.DB.Exec(`UPDATE users SET telegram_id = NULL WHERE id = ?`, userID)
+	return err
+}
+
+func (s *Store) GetTicketByNumber(number string) (*models.Ticket, error) {
+	row := s.DB.QueryRow(`
+SELECT t.id, t.number, t.title, t.description, t.status, t.priority, t.author_id, t.assignee_id, t.queue_id, t.created_at, t.updated_at, t.closed_at,
+       a.id, a.full_name, a.email, a.role,
+       s.id, s.full_name, s.email, s.role,
+       q.id, q.name
+FROM tickets t
+JOIN users a ON a.id = t.author_id
+LEFT JOIN users s ON s.id = t.assignee_id
+LEFT JOIN queues q ON q.id = t.queue_id
+WHERE t.number = ? OR t.id = ?`, number, number)
+	return scanTicketRow(row)
 }
 
 func (s *Store) CreateUser(email, fullName, passwordHash string, role models.Role) (*models.User, error) {
@@ -64,7 +102,7 @@ func (s *Store) CreateUser(email, fullName, passwordHash string, role models.Rol
 }
 
 func (s *Store) ListUsers() ([]models.User, error) {
-	rows, err := s.DB.Query(`SELECT id, email, full_name, password_hash, role, is_active, created_at FROM users ORDER BY created_at DESC`)
+	rows, err := s.DB.Query(`SELECT id, email, full_name, password_hash, role, is_active, telegram_id, created_at FROM users ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +112,16 @@ func (s *Store) ListUsers() ([]models.User, error) {
 		var u models.User
 		var active int
 		var created string
-		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &created); err != nil {
+		var telegramID sql.NullInt64
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.PasswordHash, &u.Role, &active, &telegramID, &created); err != nil {
 			return nil, err
 		}
 		u.IsActive = active == 1
 		u.CreatedAt = parseTime(created)
+		if telegramID.Valid {
+			v := telegramID.Int64
+			u.TelegramID = &v
+		}
 		out = append(out, u)
 	}
 	return out, rows.Err()

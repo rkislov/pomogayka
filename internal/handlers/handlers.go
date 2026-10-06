@@ -13,10 +13,15 @@ import (
 	"github.com/rkislov/pomogayka/internal/models"
 )
 
+type TicketNotifier interface {
+	NotifyTicketAuthor(ticket *models.Ticket, text string)
+}
+
 type App struct {
-	Store    *db.Store
-	Sessions *scs.SessionManager
-	Render   *Renderer
+	Store     *db.Store
+	Sessions  *scs.SessionManager
+	Render    *Renderer
+	Notifier  TicketNotifier
 }
 
 func (a *App) Home(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +194,9 @@ func (a *App) TicketComment(w http.ResponseWriter, r *http.Request) {
 	if _, err := a.Store.AddComment(id, user.ID, body, internal); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if !internal && a.Notifier != nil && user.ID != ticket.AuthorID {
+		a.Notifier.NotifyTicketAuthor(ticket, "Новый ответ по заявке #"+ticket.Number+"\n\n"+body)
 	}
 	comments, _ := a.Store.ListComments(id, user.Role.IsStaff())
 	if r.Header.Get("HX-Request") == "true" {

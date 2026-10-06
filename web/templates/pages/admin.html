@@ -12,13 +12,14 @@
   <h2>Пользователи</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th></th></tr></thead>
+      <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Telegram</th><th></th></tr></thead>
       <tbody>
       {{range .Users}}
         <tr>
           <td>{{.FullName}}</td>
           <td>{{.Email}}</td>
           <td>{{roleLabel .Role}}</td>
+          <td>{{if .TelegramID}}привязан{{else}}—{{end}}</td>
           <td>
             <form method="post" action="/admin/users/{{.ID}}/role" class="inline-form">
               <select name="role">

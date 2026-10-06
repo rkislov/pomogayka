@@ -10,6 +10,7 @@ import (
 
 	pomogayka "github.com/rkislov/pomogayka"
 	"github.com/rkislov/pomogayka/internal/auth"
+	"github.com/rkislov/pomogayka/internal/bot"
 	"github.com/rkislov/pomogayka/internal/config"
 	"github.com/rkislov/pomogayka/internal/db"
 	"github.com/rkislov/pomogayka/internal/handlers"
@@ -44,6 +45,21 @@ func main() {
 	}
 
 	app := &handlers.App{Store: store, Sessions: sessions, Render: renderer}
+
+	if cfg.TelegramBotEnabled {
+		if cfg.TelegramBotToken == "" {
+			log.Fatal("TELEGRAM_BOT_ENABLED=true, but TELEGRAM_BOT_TOKEN is empty")
+		}
+		tg, err := bot.NewTelegram(cfg.TelegramBotToken, store, cfg.AppName)
+		if err != nil {
+			log.Fatalf("telegram bot: %v", err)
+		}
+		app.Notifier = tg
+		go tg.Start()
+		log.Printf("Telegram bot enabled")
+	} else {
+		log.Printf("Telegram bot disabled (set TELEGRAM_BOT_TOKEN to enable)")
+	}
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID, chimw.RealIP, chimw.Logger, chimw.Recoverer)

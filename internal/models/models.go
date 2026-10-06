@@ -83,6 +83,7 @@ type User struct {
 	PasswordHash string
 	Role         Role
 	IsActive     bool
+	TelegramID   *int64
 	CreatedAt    time.Time
 }
 

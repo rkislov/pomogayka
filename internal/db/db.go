@@ -40,6 +40,9 @@ func Open(cfg config.Config) (*sql.DB, error) {
 	if err := migrate(database); err != nil {
 		return nil, err
 	}
+	if err := ensureSchema(database); err != nil {
+		return nil, err
+	}
 	if err := seed(database, cfg); err != nil {
 		return nil, err
 	}
@@ -58,6 +61,43 @@ func migrate(database *sql.DB) error {
 	_, err := database.Exec(sqlText)
 	return err
 }
+
+func ensureSchema(database *sql.DB) error {
+	cols, err := tableColumns(database, "users")
+	if err != nil {
+		return err
+	}
+	if _, ok := cols["telegram_id"]; !ok {
+		if _, err := database.Exec(`ALTER TABLE users ADD COLUMN telegram_id INTEGER`); err != nil {
+			return err
+		}
+	}
+	if _, err := database.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL`); err != nil {
+		return err
+	}
+	return nil
+}
+
+func tableColumns(database *sql.DB, table string) (map[string]bool, error) {
+	rows, err := database.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		out[name] = true
+	}
+	return out, rows.Err()
+}
+
 
 func seed(database *sql.DB, cfg config.Config) error {
 	var count int

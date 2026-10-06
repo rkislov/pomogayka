@@ -14,6 +14,7 @@
 - Админка: пользователи/роли, очереди, шаблоны уведомлений
 - Переменные шаблонов: `ticket.number`, `ticket.title`, `ticket.description` / `ticket.appeal_text`, `ticket.status`, `ticket.queue`, `author.full_name`, `assignee.full_name`, `comment.text`
 - SQLite из коробки, сессии в cookie
+- Telegram-бот: привязка аккаунта, создание заявок, список, ответы и уведомления
 
 ## Быстрый старт
 
@@ -34,6 +35,29 @@ go run ./cmd/server
 ```bash
 docker compose up --build
 ```
+
+
+## Telegram-бот
+
+1. Создайте бота через [@BotFather](https://t.me/BotFather) и получите токен.
+2. Добавьте в `.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN=123456:ABC...
+```
+
+3. Перезапустите сервер. Бот работает long polling в том же процессе.
+
+Команды бота:
+
+- `/link email пароль` — привязать аккаунт Помогайки
+- `/new Тема | Описание` — создать заявку
+- `/list` — мои заявки
+- `/ticket P-00001` — карточка заявки
+- `/comment P-00001 текст` — публичный ответ
+- `/unlink` — отвязать Telegram
+
+Когда специалист отвечает в веб-интерфейсе, заявитель с привязанным Telegram получает уведомление.
 
 ## Стек
 
