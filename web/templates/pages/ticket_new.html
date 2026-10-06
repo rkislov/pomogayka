@@ -1,0 +1,43 @@
+{{define "pages/ticket_new.html"}}
+{{template "partials/header.html" .}}
+
+<section class="page-head">
+  <div>
+    <h1>Новая заявка</h1>
+    <p class="muted">Опишите проблему или запрос</p>
+  </div>
+</section>
+<section class="card narrow">
+  {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+  <form method="post" action="/tickets" class="stack" id="ticket-form">
+    <label>Тема<input type="text" name="title" value="{{.FormTitle}}" required minlength="3"></label>
+    <label>Описание
+      <textarea name="description" rows="8" required minlength="3" placeholder="Текст обращения">{{.FormDescription}}</textarea>
+    </label>
+    <div class="grid-2">
+      <label>Приоритет
+        <select name="priority">
+          <option value="low">Низкий</option>
+          <option value="medium" selected>Средний</option>
+          <option value="high">Высокий</option>
+          <option value="critical">Критический</option>
+        </select>
+      </label>
+      <label>Очередь
+        <select name="queue_id">
+          <option value="">Без очереди</option>
+          {{range .Queues}}
+          <option value="{{.ID}}">{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+    </div>
+    <div class="actions">
+      <a class="btn btn-ghost" href="/tickets">Отмена</a>
+      <button class="btn btn-primary" type="submit">Создать</button>
+    </div>
+  </form>
+</section>
+
+{{template "partials/footer.html" .}}
+{{end}}

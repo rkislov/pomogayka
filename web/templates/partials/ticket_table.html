@@ -1,0 +1,25 @@
+{{define "partials/ticket_table.html"}}
+{{if .Tickets}}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Номер</th><th>Тема</th><th>Статус</th><th>Приоритет</th><th>Автор</th><th>Создана</th></tr>
+    </thead>
+    <tbody>
+      {{range .Tickets}}
+      <tr>
+        <td><a href="/tickets/{{.ID}}">#{{.Number}}</a></td>
+        <td><a href="/tickets/{{.ID}}">{{.Title}}</a></td>
+        <td><span class="{{statusClass .Status}}">{{statusLabel .Status}}</span></td>
+        <td><span class="{{priorityClass .Priority}}">{{priorityLabel .Priority}}</span></td>
+        <td>{{if .Author}}{{.Author.FullName}}{{end}}</td>
+        <td>{{formatTime .CreatedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p class="muted">Заявок пока нет.</p>
+{{end}}
+{{end}}

@@ -1,0 +1,17 @@
+{{define "pages/login.html"}}
+{{template "partials/header.html" .}}
+
+<section class="auth-card">
+  <h1>{{.AppName}}</h1>
+  <p class="muted">Вход в систему поддержки</p>
+  {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+  <form method="post" action="/login" class="stack">
+    <label>Email<input type="email" name="email" value="{{.Email}}" required autofocus></label>
+    <label>Пароль<input type="password" name="password" required></label>
+    <button class="btn btn-primary" type="submit">Войти</button>
+  </form>
+  <p class="muted">Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
+</section>
+
+{{template "partials/footer.html" .}}
+{{end}}

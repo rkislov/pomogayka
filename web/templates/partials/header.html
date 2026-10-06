@@ -1,0 +1,34 @@
+{{define "partials/header.html"}}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{if .Title}}{{.Title}} · {{end}}{{.AppName}}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    {{if .User}}
+    <header class="topbar">
+      <a class="brand" href="/dashboard">{{.AppName}}</a>
+      <nav class="nav">
+        <a href="/dashboard" class="{{if eq .Path "/dashboard"}}active{{end}}">Дашборд</a>
+        <a href="/tickets" class="{{if hasPrefix .Path "/tickets"}}active{{end}}">Заявки</a>
+        {{if eq .User.Role "admin"}}
+        <a href="/admin" class="{{if hasPrefix .Path "/admin"}}active{{end}}">Админка</a>
+        {{end}}
+      </nav>
+      <div class="userbox">
+        <div>
+          <div class="userbox-name">{{.User.FullName}}</div>
+          <div class="userbox-role">{{roleLabel .User.Role}}</div>
+        </div>
+        <form method="post" action="/logout"><button class="btn btn-ghost" type="submit">Выйти</button></form>
+      </div>
+    </header>
+    {{end}}
+    <main class="container">
+{{end}}

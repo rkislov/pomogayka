@@ -1,0 +1,67 @@
+{{define "pages/admin.html"}}
+{{template "partials/header.html" .}}
+<section class="page-head">
+  <div>
+    <h1>Админка</h1>
+    <p class="muted">Пользователи, очереди и шаблоны уведомлений</p>
+  </div>
+</section>
+{{if .Flash}}<div class="alert alert-ok">{{.Flash}}</div>{{end}}
+
+<section class="card">
+  <h2>Пользователи</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th></th></tr></thead>
+      <tbody>
+      {{range .Users}}
+        <tr>
+          <td>{{.FullName}}</td>
+          <td>{{.Email}}</td>
+          <td>{{roleLabel .Role}}</td>
+          <td>
+            <form method="post" action="/admin/users/{{.ID}}/role" class="inline-form">
+              <select name="role">
+                <option value="client" {{if eq .Role "client"}}selected{{end}}>Заявитель</option>
+                <option value="agent" {{if eq .Role "agent"}}selected{{end}}>Специалист</option>
+                <option value="admin" {{if eq .Role "admin"}}selected{{end}}>Администратор</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" type="submit">Сохранить</button>
+            </form>
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Очереди</h2>
+  <ul class="list">
+    {{range .Queues}}
+    <li><strong>{{.Name}}</strong> — <span class="muted">{{.Description}}</span></li>
+    {{end}}
+  </ul>
+  <form method="post" action="/admin/queues" class="stack narrow-form">
+    <label>Название<input type="text" name="name" required></label>
+    <label>Описание<input type="text" name="description"></label>
+    <button class="btn btn-primary" type="submit">Добавить очередь</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Шаблоны уведомлений</h2>
+  <p class="muted">Переменные: ticket.number, ticket.title, ticket.description (текст заявки), ticket.appeal_text, ticket.status, ticket.queue, author.full_name, assignee.full_name, comment.text — в двойных фигурных скобках.</p>
+  {{range .Templates}}
+  <form method="post" action="/admin/templates/{{.ID}}" class="stack template-form">
+    <div class="eyebrow">{{.Event}}</div>
+    <label>Тема<input type="text" name="subject" value="{{.Subject}}" required></label>
+    <label>Текст<textarea name="body" rows="5" required>{{.Body}}</textarea></label>
+    <label class="check"><input type="checkbox" name="is_active" value="1" {{if .IsActive}}checked{{end}}> Активен</label>
+    <button class="btn btn-secondary" type="submit">Сохранить шаблон</button>
+  </form>
+  {{end}}
+</section>
+{{template "partials/footer.html" .}}
+{{end}}

@@ -1,0 +1,56 @@
+{{define "pages/ticket_view.html"}}
+{{template "partials/header.html" .}}
+
+<section class="page-head">
+  <div>
+    <p class="eyebrow">#{{.Ticket.Number}}</p>
+    <h1>{{.Ticket.Title}}</h1>
+    <div class="meta-row">
+      <span class="{{statusClass .Ticket.Status}}">{{statusLabel .Ticket.Status}}</span>
+      <span class="{{priorityClass .Ticket.Priority}}">{{priorityLabel .Ticket.Priority}}</span>
+      <span class="pill">Автор: {{if .Ticket.Author}}{{.Ticket.Author.FullName}}{{end}}</span>
+      <span class="pill">Исполнитель: {{if .Ticket.Assignee}}{{.Ticket.Assignee.FullName}}{{else}}Не назначен{{end}}</span>
+      <span class="pill">Очередь: {{if .Ticket.Queue}}{{.Ticket.Queue.Name}}{{else}}—{{end}}</span>
+      <span class="pill">Создана: {{formatTime .Ticket.CreatedAt}}</span>
+    </div>
+  </div>
+  <div class="actions">
+    {{if and .User.Role.IsStaff (ne .Ticket.Status "closed")}}
+    <form method="post" action="/tickets/{{.Ticket.ID}}/take"><button class="btn btn-secondary" type="submit">В работу</button></form>
+    <form method="post" action="/tickets/{{.Ticket.ID}}/await"><button class="btn btn-ghost" type="submit">Ожидание ответа</button></form>
+    {{end}}
+    {{if ne .Ticket.Status "closed"}}
+    <form method="post" action="/tickets/{{.Ticket.ID}}/close"><button class="btn btn-danger" type="submit">Закрыть</button></form>
+    {{end}}
+  </div>
+</section>
+
+<section class="card">
+  <div class="section-label">Текст обращения</div>
+  <div class="ticket-description">{{nl2br .Ticket.Description}}</div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Переписка</h2></div>
+  {{template "partials/comments.html" .}}
+  {{if ne .Ticket.Status "closed"}}
+  <form class="stack comment-form"
+        method="post"
+        action="/tickets/{{.Ticket.ID}}/comments"
+        hx-post="/tickets/{{.Ticket.ID}}/comments"
+        hx-target="#comments"
+        hx-swap="outerHTML"
+        data-reset-on-success>
+    <label>Ответ
+      <textarea name="body" rows="4" required placeholder="Напишите ответ..."></textarea>
+    </label>
+    {{if .User.Role.IsStaff}}
+    <label class="check"><input type="checkbox" name="is_internal" value="1"> Внутренняя заметка</label>
+    {{end}}
+    <button class="btn btn-primary" type="submit">Отправить</button>
+  </form>
+  {{end}}
+</section>
+
+{{template "partials/footer.html" .}}
+{{end}}

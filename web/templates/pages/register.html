@@ -1,0 +1,18 @@
+{{define "pages/register.html"}}
+{{template "partials/header.html" .}}
+
+<section class="auth-card">
+  <h1>Регистрация</h1>
+  <p class="muted">Создайте аккаунт заявителя</p>
+  {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+  <form method="post" action="/register" class="stack">
+    <label>ФИО<input type="text" name="full_name" value="{{.FullName}}" required></label>
+    <label>Email<input type="email" name="email" value="{{.Email}}" required></label>
+    <label>Пароль<input type="password" name="password" minlength="8" required></label>
+    <button class="btn btn-primary" type="submit">Создать аккаунт</button>
+  </form>
+  <p class="muted"><a href="/login">Уже есть аккаунт</a></p>
+</section>
+
+{{template "partials/footer.html" .}}
+{{end}}

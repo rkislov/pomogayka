@@ -1,0 +1,16 @@
+{{define "partials/comments.html"}}
+<div id="comments" class="comments">
+  {{range .Comments}}
+  <article class="comment {{if .IsInternal}}comment-internal{{end}}">
+    <div class="comment-meta">
+      <strong>{{if .Author}}{{.Author.FullName}}{{end}}</strong>
+      <span>{{formatTime .CreatedAt}}</span>
+      {{if .IsInternal}}<span class="badge badge-slate">Внутренний</span>{{end}}
+    </div>
+    <div class="comment-body">{{nl2br .Body}}</div>
+  </article>
+  {{else}}
+  <p class="muted">Комментариев пока нет.</p>
+  {{end}}
+</div>
+{{end}}

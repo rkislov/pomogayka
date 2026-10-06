@@ -1,0 +1,9 @@
+/.env
+/data/
+*.db
+*.db-*
+/bin/
+/dist/
+.DS_Store
+.idea/
+.vscode/

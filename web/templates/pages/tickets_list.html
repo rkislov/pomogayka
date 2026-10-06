@@ -1,0 +1,30 @@
+{{define "pages/tickets_list.html"}}
+{{template "partials/header.html" .}}
+
+<section class="page-head">
+  <div>
+    <h1>Заявки</h1>
+    <p class="muted">Список обращений</p>
+  </div>
+  <a class="btn btn-primary" href="/tickets/new">Новая заявка</a>
+</section>
+<form class="filters card" method="get" action="/tickets">
+  <input type="search" name="q" value="{{.Query}}" placeholder="Поиск по номеру, теме, тексту">
+  <select name="status">
+    <option value="">Все статусы</option>
+    <option value="new" {{if eq .Status "new"}}selected{{end}}>Новый</option>
+    <option value="in_progress" {{if eq .Status "in_progress"}}selected{{end}}>В работе</option>
+    <option value="awaiting_requester" {{if eq .Status "awaiting_requester"}}selected{{end}}>Ожидание ответа</option>
+    <option value="closed" {{if eq .Status "closed"}}selected{{end}}>Закрыт</option>
+  </select>
+  {{if .User.Role.IsStaff}}
+  <label class="check"><input type="checkbox" name="mine" value="1" {{if .Mine}}checked{{end}}> Только мои</label>
+  {{end}}
+  <button class="btn btn-secondary" type="submit">Применить</button>
+</form>
+<section class="card">
+  {{template "partials/ticket_table.html" .}}
+</section>
+
+{{template "partials/footer.html" .}}
+{{end}}

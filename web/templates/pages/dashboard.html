@@ -1,0 +1,26 @@
+{{define "pages/dashboard.html"}}
+{{template "partials/header.html" .}}
+
+<section class="page-head">
+  <div>
+    <h1>Дашборд</h1>
+    <p class="muted">Обзор заявок и текущей нагрузки</p>
+  </div>
+  <a class="btn btn-primary" href="/tickets/new">Новая заявка</a>
+</section>
+<div class="stats-grid">
+  <div class="stat"><div class="stat-label">Новые</div><div class="stat-value">{{.Stats.OpenTickets}}</div></div>
+  <div class="stat"><div class="stat-label">В работе</div><div class="stat-value">{{.Stats.InProgress}}</div></div>
+  <div class="stat"><div class="stat-label">Ожидание ответа</div><div class="stat-value">{{.Stats.Awaiting}}</div></div>
+  <div class="stat"><div class="stat-label">Закрыто за неделю</div><div class="stat-value">{{.Stats.ClosedThisWeek}}</div></div>
+  {{if .User.Role.IsStaff}}
+  <div class="stat"><div class="stat-label">Мои назначенные</div><div class="stat-value">{{.Stats.MyAssigned}}</div></div>
+  {{end}}
+</div>
+<section class="card">
+  <div class="card-head"><h2>Последние заявки</h2><a href="/tickets">Все заявки</a></div>
+  {{template "partials/ticket_table.html" .}}
+</section>
+
+{{template "partials/footer.html" .}}
+{{end}}
